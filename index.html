@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- SDKs de Firebase (Compatibilidad CDN con Analytics) -->
+    <!-- SDKs de Firebase (Compatibilidad CDN con Firestore y Analytics) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
@@ -212,14 +212,7 @@
             font-size:30px; line-height:1.1; font-weight:800;
             color:#1d4ed8; margin-top:2px;
         }
-        .active-participants-subtitle {
-            font-size:12px; color:#7a8491; margin-top:3px;
-        }
-        .carga-resultado-ok { border-left:4px solid #2e7d32; }
-        .carga-resultado-error { border-left:4px solid #c62828; }
-        .carga-resultado-warning { border-left:4px solid #ef6c00; }
-        .carga-resultado-lista { margin:8px 0 0 18px; padding:0; }
-        .carga-resultado-lista li { margin:3px 0; }
+        .active-participants-subtitle { font-size:12px; color:#7a8491; margin-top:3px; }
 
         .creditos-institucionales{
             width:100%; box-sizing:border-box; margin-top:28px; padding:18px 24px;
@@ -270,7 +263,6 @@
         .cloud-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #2E7D32; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; font-weight: bold; margin-bottom: 5px; }
         .cloud-badge.syncing { color: #0288D1; background: #E1F5FE; }
 
-        /* Estilos de Splash de Inicio */
         .startup-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;background:radial-gradient(circle at 50% 42%, rgba(225,0,30,.12), transparent 30%), radial-gradient(circle at 50% 50%, rgba(20,35,60,.5), transparent 62%), #05070b;transition:opacity .65s ease,visibility .65s ease;}
         .startup-splash.hidden{opacity:0;visibility:hidden;pointer-events:none;}
         .startup-card{position:relative;z-index:2;width:min(520px,calc(100% - 40px));padding:42px 42px 34px;text-align:center;border:1px solid rgba(255,255,255,.13);border-radius:24px;background:rgba(16,18,22,.76);box-shadow:0 30px 80px rgba(0,0,0,.42);backdrop-filter:blur(14px);}
@@ -665,71 +657,183 @@
         });
     }
 
-    // 4. FUNCIONES DE INTERFAZ Y REGLAS DE NEGOCIO
+    // 4. MANEJO DE LOGO E IDENTIDAD DE OPERACIÓN
     function procesarLogoEmpresa(event) {
         const file = event?.target?.files?.[0];
         if (!file) return;
+
+        if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) {
+            alert('Formato no permitido. Usa PNG, JPG, WEBP o SVG.');
+            event.target.value = '';
+            return;
+        }
+
+        if (file.size > 800 * 1024) {
+            alert('El logo no puede superar los 800 KB para permitir su almacenamiento en la nube.');
+            event.target.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = async () => {
             LOGO_EMPRESA = String(reader.result || '');
-            await db.collection("configuracion").doc("general").set({ logo: LOGO_EMPRESA }, { merge: true });
             actualizarLogoEmpresa();
+            
+            setSyncStatus(true);
+            try {
+                await db.collection("configuracion").doc("general").set({
+                    logo: LOGO_EMPRESA
+                }, { merge: true });
+                setSyncStatus(false);
+            } catch (error) {
+                console.error("Error guardando logo en Firebase:", error);
+                setSyncStatus(false);
+                alert("No fue posible sincronizar el logo en la nube.");
+            }
         };
         reader.readAsDataURL(file);
     }
 
     function actualizarLogoEmpresa() {
         const prev = document.getElementById('logoOperacionPreview');
-        if (prev) prev.innerHTML = LOGO_EMPRESA ? `<img src="${LOGO_EMPRESA}" alt="Logo">` : '<span class="logo-operacion-placeholder">No hay logo cargado.</span>';
+        if (prev) {
+            prev.innerHTML = LOGO_EMPRESA 
+                ? `<img src="${LOGO_EMPRESA}" alt="Logo de la empresa">` 
+                : '<span class="logo-operacion-placeholder">No hay logo cargado.</span>';
+        }
+        
         const img = document.getElementById('logoReporteImagen');
         const sinLogo = document.getElementById('logoReporteSinLogo');
         if (img) {
-            if (LOGO_EMPRESA) { img.src = LOGO_EMPRESA; img.style.display = 'block'; if (sinLogo) sinLogo.style.display = 'none'; }
-            else { img.removeAttribute('src'); img.style.display = 'none'; if (sinLogo) sinLogo.style.display = 'block'; }
+            if (LOGO_EMPRESA) {
+                img.src = LOGO_EMPRESA;
+                img.style.display = 'block';
+                if (sinLogo) sinLogo.style.display = 'none';
+            } else {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                if (sinLogo) sinLogo.style.display = 'block';
+            }
         }
     }
 
     async function quitarLogoEmpresa() {
         LOGO_EMPRESA = '';
-        await db.collection("configuracion").doc("general").set({ logo: '' }, { merge: true });
+        const inp = document.getElementById('inputLogoEmpresa');
+        if (inp) inp.value = '';
         actualizarLogoEmpresa();
+
+        setSyncStatus(true);
+        try {
+            await db.collection("configuracion").doc("general").set({ logo: '' }, { merge: true });
+        } catch (e) {
+            console.error("Error quitando logo:", e);
+        }
+        setSyncStatus(false);
     }
 
     function actualizarIdentidadOperacion() {
-        document.getElementById('configCampana').value = CONFIG_OPERACION.campana || '';
-        document.getElementById('configCliente').value = CONFIG_OPERACION.cliente || '';
-        document.getElementById('configSede').value = CONFIG_OPERACION.sede || '';
-        document.getElementById('configCiudad').value = CONFIG_OPERACION.ciudad || '';
-        document.getElementById('configPais').value = CONFIG_OPERACION.pais || '';
+        const campos = {
+            configCampana: 'campana',
+            configCliente: 'cliente',
+            configSede: 'sede',
+            configCiudad: 'ciudad',
+            configPais: 'pais'
+        };
+        Object.entries(campos).forEach(([id, key]) => {
+            const e = document.getElementById(id);
+            if (e) e.value = CONFIG_OPERACION[key] || '';
+        });
 
-        document.getElementById('reporteCampana').textContent = CONFIG_OPERACION.campana || '—';
-        document.getElementById('reporteCliente').textContent = CONFIG_OPERACION.cliente || '—';
-        document.getElementById('reporteSede').textContent = CONFIG_OPERACION.sede || '—';
-        document.getElementById('reporteCiudad').textContent = CONFIG_OPERACION.ciudad || '—';
-        document.getElementById('reportePais').textContent = CONFIG_OPERACION.pais || '—';
+        const rep = {
+            reporteCampana: 'campana',
+            reporteCliente: 'cliente',
+            reporteSede: 'sede',
+            reporteCiudad: 'ciudad',
+            reportePais: 'pais'
+        };
+        Object.entries(rep).forEach(([id, key]) => {
+            const e = document.getElementById(id);
+            if (e) e.textContent = CONFIG_OPERACION[key] || '—';
+        });
 
-        document.getElementById('appHeaderTitle').textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes`;
+        const rt = document.getElementById('reporteTituloCorporativo');
+        if (rt) {
+            rt.textContent = CONFIG_OPERACION.campana 
+                ? `Reporte Ejecutivo - ${CONFIG_OPERACION.campana}` 
+                : 'Reporte Ejecutivo';
+        }
+
+        const rs = document.getElementById('reporteSubtituloCorporativo');
+        if (rs) {
+            const partes = [CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad, CONFIG_OPERACION.pais].filter(Boolean);
+            rs.textContent = partes.length 
+                ? `Desempeño, asistencia y evolución de la cohorte · ${partes.join(' · ')}` 
+                : 'Resumen de desempeño, asistencia y evolución de la cohorte.';
+        }
+
+        const t = document.getElementById('appHeaderTitle');
+        if (t) {
+            const ubic = [CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' - ');
+            t.textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes${ubic ? ' | ' + ubic : ''}`;
+        }
+
+        const nombreOperacion = [CONFIG_OPERACION.campana, CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' / ');
+        document.title = nombreOperacion 
+            ? `Seguimiento de Capacitación - ${nombreOperacion}` 
+            : 'Seguimiento de Capacitación';
     }
 
     async function guardarConfiguracionOperacion() {
         setSyncStatus(true);
+
         CONFIG_OPERACION = {
-            campana: normalizarNombre(document.getElementById('configCampana').value),
-            cliente: normalizarNombre(document.getElementById('configCliente').value),
-            sede: normalizarNombre(document.getElementById('configSede').value),
-            ciudad: normalizarNombre(document.getElementById('configCiudad').value),
-            pais: normalizarNombre(document.getElementById('configPais').value)
+            campana: normalizarNombre(document.getElementById('configCampana')?.value),
+            cliente: normalizarNombre(document.getElementById('configCliente')?.value),
+            sede: normalizarNombre(document.getElementById('configSede')?.value),
+            ciudad: normalizarNombre(document.getElementById('configCiudad')?.value),
+            pais: normalizarNombre(document.getElementById('configPais')?.value)
         };
-        await db.collection("configuracion").doc("general").set({ operacion: CONFIG_OPERACION }, { merge: true });
-        setSyncStatus(false);
-        alert("✅ Configuración guardada en Firebase.");
+
+        actualizarIdentidadOperacion();
+        actualizarProgresoGlobal();
+        actualizarLogoEmpresa();
+
+        try {
+            await db.collection("configuracion").doc("general").set({
+                operacion: CONFIG_OPERACION,
+                metaDias: META_DIAS,
+                diaGlobal: diaGlobalCapacitacion,
+                logo: LOGO_EMPRESA || ''
+            }, { merge: true });
+
+            setSyncStatus(false);
+            alert("✅ Información de la operación guardada correctamente.");
+        } catch (error) {
+            console.error("Error guardando en Firebase:", error);
+            setSyncStatus(false);
+            alert("No se pudo sincronizar en la nube: " + error.message);
+        }
     }
 
     async function limpiarConfiguracionOperacion() {
-        CONFIG_OPERACION = { campana:'', cliente:'', sede:'', ciudad:'', pais:'' };
-        await db.collection("configuracion").doc("general").set({ operacion: CONFIG_OPERACION }, { merge: true });
+        CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
+        actualizarIdentidadOperacion();
+        actualizarProgresoGlobal();
+
+        setSyncStatus(true);
+        try {
+            await db.collection("configuracion").doc("general").set({
+                operacion: CONFIG_OPERACION
+            }, { merge: true });
+            setSyncStatus(false);
+        } catch (e) {
+            console.error("Error limpiando operación:", e);
+            setSyncStatus(false);
+        }
     }
 
+    // 5. REGLAS DE NEGOCIO Y CÁLCULO DE KPIS
     async function actualizarMetaDias(nuevoValor) {
         let val = parseInt(nuevoValor) || 1;
         META_DIAS = val;
@@ -820,6 +924,10 @@
     }
 
     function actualizarProgresoGlobal() {
+        const textoCampana = normalizarNombre(CONFIG_OPERACION?.campana);
+        const titulo = document.getElementById("tituloProgresoCapacitacion");
+        if (titulo) titulo.textContent = textoCampana ? `📅 Progreso de capacitación ${textoCampana}` : '📅 Progreso de capacitación';
+
         const pct = Math.round((diaGlobalCapacitacion / META_DIAS) * 100);
         document.getElementById("textoProgresoGlobal").innerText = `Día ${diaGlobalCapacitacion} / ${META_DIAS} (${pct}%)`;
         document.getElementById("barraProgresoGlobal").style.width = `${pct}%`;
@@ -896,7 +1004,7 @@
         }
     }
 
-    // 5. CRUD DE ASPIRANTES EN FIRESTORE
+    // 6. CRUD ASPIRANTES
     async function guardarAspiranteForm() {
         const id = document.getElementById("inputCedula").value.trim();
         const nom = document.getElementById("inputNombre").value.trim();
@@ -952,7 +1060,7 @@
         });
     }
 
-    // 6. EXPORTACIONES E IMPORTACIONES EXCEL CON BATCH A FIRESTORE
+    // 7. IMPORTACIÓN / EXPORTACIÓN EXCEL
     function descargarFormatoCarga() {
         const ws = XLSX.utils.aoa_to_sheet([['CEDULA','NOMBRE','PAIS','DIA','ESTADO','MOTIVO','ASISTENCIA','PUNTUALIDAD','TALLERES','QUIZ','ACTITUDINAL','CERTIFICACION FINAL']]);
         const wb = XLSX.utils.book_new();
@@ -1062,7 +1170,7 @@
         alert("✅ Base de datos reseteada.");
     }
 
-    // 7. CONTROLADORES UI
+    // 8. CONTROLADORES UI Y SPLASH
     function cambiarPestana(id, btn) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1098,7 +1206,6 @@
         window.print();
     }
 
-    // Inicialización del Splash de Carga
     (function(){
         const splash = document.getElementById('startupSplash');
         const bar = document.getElementById('startupProgressBar');
