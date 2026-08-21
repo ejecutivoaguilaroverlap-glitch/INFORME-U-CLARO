@@ -289,7 +289,7 @@
         .reporte-corporativo-subtitulo{margin: 5px 0 0; color: #64748B; font-size: 13px; line-height: 1.45;}
         
         .identidad-reporte{background: #fff; border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 18px; box-shadow: var(--card-shadow);}
-        .identidad-reporte-grid{display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;}
+        .identidad-reporte-grid{display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0;}
         .identidad-reporte-item{padding: 6px 13px; border-right: 1px solid var(--border-color);}
         .identidad-reporte-item:last-child{border-right: 0;}
         .identidad-reporte-item span{display: block; font-size: 9px; text-transform: uppercase; color: #94A3B8; font-weight: 800; letter-spacing: 0.65px;}
@@ -308,7 +308,6 @@
         .toast-msg.success { border-left-color: #10B981; }
         .toast-msg.error { border-left-color: #EF4444; }
 
-        /* Splash Screen Optimizado */
         .startup-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;background:radial-gradient(circle at 50% 42%, rgba(239,56,41,.18), transparent 35%), radial-gradient(circle at 50% 50%, rgba(20,35,60,.65), transparent 65%), #05070b;transition:opacity .65s ease,visibility .65s ease;}
         .startup-splash.hidden{opacity:0;visibility:hidden;pointer-events:none;}
         .startup-card{position:relative;z-index:2;width:min(520px,calc(100% - 40px));padding:40px 42px 34px;text-align:center;border:1px solid rgba(255,255,255,.14);border-radius:24px;background:rgba(18,22,30,.82);box-shadow:0 30px 80px rgba(0,0,0,.5);backdrop-filter:blur(16px);}
@@ -383,6 +382,7 @@
             <h3>⚙️ Información de la operación</h3>
             <div class="config-operacion-grid">
                 <div><label for="configCampana">Campaña</label><input id="configCampana" type="text" placeholder="Ej: PQR"></div>
+                <div><label for="configEjecutivo">Ejecutivo de Entrenamiento</label><input id="configEjecutivo" type="text" placeholder="Ej: Ing. Edison Aguilar"></div>
                 <div><label for="configCliente">Cliente</label><input id="configCliente" type="text" placeholder="Ej: Claro"></div>
                 <div><label for="configSede">Sede</label><input id="configSede" type="text" placeholder="Ej: Atento"></div>
                 <div><label for="configCiudad">Ciudad</label><input id="configCiudad" type="text" placeholder="Ej: Bogotá"></div>
@@ -470,6 +470,7 @@
             <div class="identidad-reporte" id="identidadOperacionReporte">
                 <div class="identidad-reporte-grid">
                     <div class="identidad-reporte-item"><span>Campaña</span><strong id="reporteCampana">—</strong></div>
+                    <div class="identidad-reporte-item"><span>Ejecutivo</span><strong id="reporteEjecutivo">—</strong></div>
                     <div class="identidad-reporte-item"><span>Cliente</span><strong id="reporteCliente">—</strong></div>
                     <div class="identidad-reporte-item"><span>Sede</span><strong id="reporteSede">—</strong></div>
                     <div class="identidad-reporte-item"><span>Ciudad</span><strong id="reporteCiudad">—</strong></div>
@@ -643,10 +644,8 @@
     const db = firebase.firestore();
     const analytics = firebase.analytics();
 
-    // Habilitar persistencia offline en segundo plano
     db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
-    // Sistema de notificaciones no bloqueantes (Toast)
     function mostrarToast(mensaje, tipo = "info") {
         const container = document.getElementById("toastContainer");
         if (!container) return;
@@ -677,7 +676,7 @@
     let temarioPQR = [];
     let registrosAsistenciaManual = {};
     let cronogramaOficialCargado = false;
-    let CONFIG_OPERACION = { campana:'', cliente:'', sede:'', ciudad:'', pais:'' };
+    let CONFIG_OPERACION = { campana:'', ejecutivo:'', cliente:'', sede:'', ciudad:'', pais:'' };
     let LOGO_EMPRESA = localStorage.getItem("claro_logo_empresa") || '';
     let aspiranteActivoId = null;
     let chartInstance = null;
@@ -884,6 +883,7 @@
     function actualizarIdentidadOperacion() {
         const campos = {
             configCampana: 'campana',
+            configEjecutivo: 'ejecutivo',
             configCliente: 'cliente',
             configSede: 'sede',
             configCiudad: 'ciudad',
@@ -896,6 +896,7 @@
 
         const rep = {
             reporteCampana: 'campana',
+            reporteEjecutivo: 'ejecutivo',
             reporteCliente: 'cliente',
             reporteSede: 'sede',
             reporteCiudad: 'ciudad',
@@ -915,7 +916,7 @@
 
         const rs = document.getElementById('reporteSubtituloCorporativo');
         if (rs) {
-            const partes = [CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad, CONFIG_OPERACION.pais].filter(Boolean);
+            const partes = [CONFIG_OPERACION.ejecutivo ? `Ejecutivo: ${CONFIG_OPERACION.ejecutivo}` : '', CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad, CONFIG_OPERACION.pais].filter(Boolean);
             rs.textContent = partes.length 
                 ? `Desempeño, asistencia y evolución de la cohorte · ${partes.join(' · ')}` 
                 : 'Resumen de desempeño, asistencia y evolución de la cohorte.';
@@ -924,10 +925,11 @@
         const t = document.getElementById('appHeaderTitle');
         if (t) {
             const ubic = [CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' - ');
-            t.textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes${ubic ? ' | ' + ubic : ''}`;
+            const ej = CONFIG_OPERACION.ejecutivo ? ` | ${CONFIG_OPERACION.ejecutivo}` : '';
+            t.textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes${ubic ? ' | ' + ubic : ''}${ej}`;
         }
 
-        const nombreOperacion = [CONFIG_OPERACION.campana, CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' / ');
+        const nombreOperacion = [CONFIG_OPERACION.campana, CONFIG_OPERACION.ejecutivo, CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' / ');
         document.title = nombreOperacion 
             ? `Seguimiento de Capacitación - ${nombreOperacion}` 
             : 'Seguimiento de Capacitación';
@@ -938,6 +940,7 @@
 
         CONFIG_OPERACION = {
             campana: normalizarNombre(document.getElementById('configCampana')?.value),
+            ejecutivo: normalizarNombre(document.getElementById('configEjecutivo')?.value),
             cliente: normalizarNombre(document.getElementById('configCliente')?.value),
             sede: normalizarNombre(document.getElementById('configSede')?.value),
             ciudad: normalizarNombre(document.getElementById('configCiudad')?.value),
@@ -966,7 +969,7 @@
     }
 
     async function limpiarConfiguracionOperacion() {
-        CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
+        CONFIG_OPERACION = { campana: '', ejecutivo: '', cliente: '', sede: '', ciudad: '', pais: '' };
         actualizarIdentidadOperacion();
         actualizarProgresoGlobal();
 
@@ -1279,7 +1282,6 @@
             return;
         }
 
-        // Validación de duplicado al crear un nuevo aspirante
         if (!idEditando && participantes.some(p => p.id === id)) {
             mostrarToast("Ya existe un aspirante con esta Cédula.", "error");
             return;
@@ -1378,7 +1380,6 @@
 
         const wb = XLSX.utils.book_new();
 
-        // Hoja 1: Aspirantes Procesados
         const filasAspirantes = [
             ['CEDULA', 'NOMBRE', 'PAIS', 'ESTADO', 'MOTIVO RETIRO', 'DIA RETIRO', 'ASISTENCIA', 'PUNTUALIDAD', 'TALLERES', 'QUIZ', 'ACTITUDINAL', 'PROMEDIO GENERAL', 'CERTIFICACION FINAL']
         ];
@@ -1404,7 +1405,6 @@
         const wsAspirantes = XLSX.utils.aoa_to_sheet(filasAspirantes);
         XLSX.utils.book_append_sheet(wb, wsAspirantes, "Aspirantes_Consolidado");
 
-        // Hoja 2: Cronograma
         const filasCronograma = [['DIA', 'TOTAL_ESPERADO', 'PRESENTES', 'ASISTENCIA_%', 'TEMAS', 'ACTIVIDADES']];
         for (let i = 1; i <= META_DIAS; i++) {
             const c = temarioPQR.find(t => Number(t.dia) === i) || {};
@@ -1430,7 +1430,6 @@
     function descargarFormatoUnificado() {
         const wb = XLSX.utils.book_new();
 
-        // 1. Hoja "Aspirantes"
         const datosAspirantes = [
             ['CEDULA', 'NOMBRE', 'PAIS', 'DIA', 'ESTADO', 'MOTIVO', 'ASISTENCIA', 'PUNTUALIDAD', 'TALLERES', 'QUIZ', 'ACTITUDINAL', 'CERTIFICACION FINAL'],
             ['100100101', 'JUAN PÉREZ LÓPEZ', 'Colombia', 1, 'ACTIVO', '', 5.0, 5.0, 4.5, 4.5, 5.0, ''],
@@ -1441,7 +1440,6 @@
         const wsAspirantes = XLSX.utils.aoa_to_sheet(datosAspirantes);
         XLSX.utils.book_append_sheet(wb, wsAspirantes, "Aspirantes");
 
-        // 2. Hoja "Cronograma"
         const datosCronograma = [['DIA', 'TOTAL_ESPERADO', 'PRESENTES', 'TEMAS', 'ACTIVIDADES']];
         for (let i = 1; i <= META_DIAS; i++) {
             datosCronograma.push([
@@ -1455,7 +1453,6 @@
         const wsCronograma = XLSX.utils.aoa_to_sheet(datosCronograma);
         XLSX.utils.book_append_sheet(wb, wsCronograma, "Cronograma");
 
-        // 3. Hoja "Instructivo"
         const datosInstructivo = [
             ['GUÍA DE DILIGENCIAMIENTO - PLANTILLA DE CAPACITACIÓN'],
             [''],
@@ -1493,7 +1490,6 @@
             let sheetAspirantesName = wb.SheetNames.find(n => n.toLowerCase().includes('aspirant') || n.toLowerCase().includes('datos')) || wb.SheetNames[0];
             let sheetCronogramaName = wb.SheetNames.find(n => n.toLowerCase().includes('crono') || n.toLowerCase().includes('tema'));
 
-            // 1. Procesar Hoja de Aspirantes
             const jsonAspirantes = XLSX.utils.sheet_to_json(wb.Sheets[sheetAspirantesName]);
             const agrupados = new Map();
             let totalAspirantes = 0;
@@ -1548,7 +1544,6 @@
                 totalAspirantes = listaProcesada.length;
             }
 
-            // 2. Procesar Hoja de Cronograma
             let diasCronoModificados = 0;
             if (sheetCronogramaName && wb.Sheets[sheetCronogramaName]) {
                 const jsonCronograma = XLSX.utils.sheet_to_json(wb.Sheets[sheetCronogramaName]);
