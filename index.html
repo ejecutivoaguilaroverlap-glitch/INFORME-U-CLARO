@@ -52,7 +52,6 @@
         .btn-danger { background-color: #fff; color: var(--claro-red); border: 1px solid var(--claro-red); margin-top: auto; }
         .btn-danger:hover { background-color: #FFEBEE; }
         
-        /* Lista de aspirantes ampliada */
         .aspirantes-list { 
             display: flex; 
             flex-direction: column; 
@@ -352,7 +351,7 @@
         <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv" onchange="procesarArchivoCSV(event)">
 
         <button type="button" class="btn-secondary admin-control" onclick="descargarFormatoUnificado()">
-            📥 Descargar Plantilla Excel Unificada (2 Hojas)
+            📥 Descargar Plantilla Excel Unificada (3 Hojas)
         </button>
 
         <button class="btn-primary" onclick="abrirModal()">🗂️ Ver Cuadrícula de Aspirantes</button>
@@ -1213,11 +1212,11 @@
         });
     }
 
-    // 7. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (2 HOJAS COMPLETAS) Y LECTOR INTEGRADO
+    // 7. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (3 HOJAS: ASPIRANTES, CRONOGRAMA E INSTRUCTIVO)
     function descargarFormatoUnificado() {
         const wb = XLSX.utils.book_new();
 
-        // 1. Hoja "Aspirantes" con datos guía completos y claros
+        // 1. Hoja "Aspirantes"
         const datosAspirantes = [
             ['CEDULA', 'NOMBRE', 'PAIS', 'DIA', 'ESTADO', 'MOTIVO', 'ASISTENCIA', 'PUNTUALIDAD', 'TALLERES', 'QUIZ', 'ACTITUDINAL', 'CERTIFICACION FINAL'],
             ['100100101', 'JUAN PÉREZ LÓPEZ', 'Colombia', 1, 'ACTIVO', '', 5.0, 5.0, 4.5, 4.5, 5.0, ''],
@@ -1228,19 +1227,43 @@
         const wsAspirantes = XLSX.utils.aoa_to_sheet(datosAspirantes);
         XLSX.utils.book_append_sheet(wb, wsAspirantes, "Aspirantes");
 
-        // 2. Hoja "Cronograma" con prellenado completo del 1 al META_DIAS
+        // 2. Hoja "Cronograma"
         const datosCronograma = [['DIA', 'TOTAL_ESPERADO', 'PRESENTES', 'TEMAS', 'ACTIVIDADES']];
         for (let i = 1; i <= META_DIAS; i++) {
             datosCronograma.push([
                 i,
                 30,
                 i <= diaGlobalCapacitacion ? 30 : '',
-                `Tema principal del Día ${i}\nSubtema o procedimiento ${i}`,
-                `Taller práctico ${i}\nEvaluación continua del Día ${i}`
+                `Tema principal del Día ${i} | Subtema o procedimiento ${i}`,
+                `Taller práctico ${i} | Evaluación continua del Día ${i}`
             ]);
         }
         const wsCronograma = XLSX.utils.aoa_to_sheet(datosCronograma);
         XLSX.utils.book_append_sheet(wb, wsCronograma, "Cronograma");
+
+        // 3. Hoja "Instructivo" (Guía de diligenciamiento)
+        const datosInstructivo = [
+            ['GUÍA DE DILIGENCIAMIENTO - PLANTILLA DE CAPACITACIÓN'],
+            [''],
+            ['SECCIÓN', 'CAMPO / COLUMNA', 'TIPO DE DATO', 'REGLA DE FORMATO', 'EJEMPLO'],
+            ['Aspirantes', 'CEDULA', 'Texto / Número', 'Identificación única del aspirante sin puntos ni comas.', '100100101'],
+            ['Aspirantes', 'NOMBRE', 'Texto', 'Nombre completo del participante.', 'JUAN PÉREZ LÓPEZ'],
+            ['Aspirantes', 'PAIS', 'Texto', 'País o sede del aspirante.', 'Colombia'],
+            ['Aspirantes', 'DIA', 'Número', 'Número del día correspondiente al registro (1 al 19).', '1'],
+            ['Aspirantes', 'ESTADO', 'Texto', 'Colocar "ACTIVO" o "RETIRADO".', 'ACTIVO'],
+            ['Aspirantes', 'MOTIVO', 'Texto', 'Solo si está retirado: RETIRO / VOLUNTARIO, RETIRO / PROCESOS INTERNOS, etc.', 'RETIRO / VOLUNTARIO'],
+            ['Aspirantes', 'NOTAS (0.0 - 5.0)', 'Decimal (0-5)', 'Calificaciones individuales en escala base 5.0 (ASISTENCIA, PUNTUALIDAD, etc.).', '4.8'],
+            ['Aspirantes', 'CERTIFICACION FINAL', 'Decimal (0-5)', 'Nota de certificación del último día (dejar vacío si aún no aplica).', '4.5'],
+            ['Cronograma', 'DIA', 'Número', 'Día correlativo de la capacitación (1 a Meta de Días).', '1'],
+            ['Cronograma', 'TOTAL_ESPERADO', 'Número entero', 'Total de participantes convocados para la sesión.', '30'],
+            ['Cronograma', 'PRESENTES', 'Número entero', 'Cantidad de asistentes reales. Dejar vacío en días futuros para no alterar el progreso.', '28'],
+            ['Cronograma', 'TEMAS', 'Texto con |', 'Separar temas con barra vertical "|" o salto de línea (Alt + Enter) para crear viñetas.', 'Inducción | Normativa PQR | Políticas'],
+            ['Cronograma', 'ACTIVIDADES', 'Texto con |', 'Separar actividades con barra vertical "|" o salto de línea (Alt + Enter).', 'Dinámica grupal | Quiz diagnóstico'],
+            [''],
+            ['IMPORTANTE: No modifiques los nombres de los encabezados de las hojas "Aspirantes" y "Cronograma" para evitar errores de sincronización.']
+        ];
+        const wsInstructivo = XLSX.utils.aoa_to_sheet(datosInstructivo);
+        XLSX.utils.book_append_sheet(wb, wsInstructivo, "Instructivo");
 
         XLSX.writeFile(wb, "Plantilla_Capacitacion_Unificada.xlsx");
     }
