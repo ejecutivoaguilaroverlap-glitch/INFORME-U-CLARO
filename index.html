@@ -28,7 +28,6 @@
         header span { font-size: 0.9rem; background: rgba(255, 255, 255, 0.2); padding: 4px 12px; border-radius: 12px; }
 
         .container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; padding: 20px; flex: 1; max-width: 1400px; margin: 0 auto; width: 100%; }
-
         .sidebar { background: white; border-radius: 8px; padding: 15px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
         
         .config-dias-card { background: #F8FAF1; border: 1px solid #C8E6C9; padding: 10px; border-radius: 6px; margin-bottom: 5px; }
@@ -67,11 +66,7 @@
         .tab-btn:hover { background: #E0E0E0; }
         .tab-btn.active { background: var(--claro-red); color: white; }
         
-        @keyframes fadeInTab {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
+        @keyframes fadeInTab { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeInTab 0.4s ease-out forwards; }
         .tab-content-grid.active { display: grid; }
@@ -375,7 +370,7 @@
             <div>
                 <div class="active-participants-label">Participantes activos</div>
                 <div class="active-participants-value" id="kpiParticipantesActivos">0</div>
-                <div class="active-participants-subtitle">Aspirantes sincronizados en la nube</div>
+                <div class="active-participants-subtitle" id="subtituloCohorte">Aspirantes activos de la cohorte</div>
             </div>
         </div>
 
@@ -421,7 +416,11 @@
                     <div class="kpi-box"><span class="kpi-label">Asistencia</span><div class="kpi-val" id="kpiGlobalAsistencia">0.0 <span>/ 5.0</span></div></div>
                     <div class="kpi-box"><span class="kpi-label">Puntualidad</span><div class="kpi-val" id="kpiGlobalPuntualidad">0.0 <span>/ 5.0</span></div></div>
                     <div class="kpi-box" style="background-color: #E8F5E9; border-color: #2E7D32;"><span class="kpi-label" style="color: #2E7D32;">Talleres & Quiz</span><div class="kpi-val" id="kpiGlobalTalleresQuiz" style="color: #2E7D32;">0.0 <span>/ 5.0</span></div></div>
-                    <div class="kpi-box tooltip" style="background-color: #FFEBEE; border-color: #C62828;"><span class="kpi-label" style="color: #C62828;">Rotación (Retiros)</span><div class="kpi-val" id="kpiGlobalRotacion" style="color: #C62828;">0% <span>(0)</span></div><div class="tooltiptext" id="tooltipRotacion">Sin retiros registrados.</div></div>
+                    <div class="kpi-box tooltip" style="background-color: #FFEBEE; border-color: #C62828;">
+                        <span class="kpi-label" style="color: #C62828;">Rotación (Retiros)</span>
+                        <div class="kpi-val" id="kpiGlobalRotacion" style="color: #C62828;">0% <span>(0)</span></div>
+                        <div class="tooltiptext" id="tooltipRotacion">Sin retiros registrados.</div>
+                    </div>
                 </div>
             </div>
 
@@ -611,6 +610,30 @@
         return Number(Math.min(5, n).toFixed(2));
     }
 
+    // Recalcular el promedio histórico por aspirante garantizando límite base 5.0
+    function recalcularPromediosHistoricos(participante) {
+        if (!Array.isArray(participante.historial) || participante.historial.length === 0) return;
+        if (!participante.puntuaciones) participante.puntuaciones = {};
+
+        metricasBase.forEach(m => {
+            const valores = participante.historial
+                .map(r => r?.puntuaciones?.[m])
+                .filter(v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)))
+                .map(Number);
+            participante.puntuaciones[m] = valores.length 
+                ? Number(Math.min(5.0, (valores.reduce((a,b)=>a+b,0)/valores.length)).toFixed(2)) 
+                : null;
+        });
+
+        const certificados = participante.historial
+            .map(r => r?.puntuaciones?.["Certificación Final"])
+            .filter(v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)))
+            .map(Number);
+        if (certificados.length) {
+            participante.puntuaciones["Certificación Final"] = Math.min(5.0, certificados[certificados.length-1]);
+        }
+    }
+
     // 3. SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE
     function escucharDatosFirebase() {
         db.collection("configuracion").doc("general").onSnapshot(doc => {
@@ -641,7 +664,11 @@
         db.collection("aspirantes").onSnapshot(snapshot => {
             setSyncStatus(true);
             const lista = [];
-            snapshot.forEach(doc => lista.push(doc.data()));
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                recalcularPromediosHistoricos(data);
+                lista.push(data);
+            });
             participantes = lista;
 
             popularListaAspirantes();
@@ -909,15 +936,21 @@
         actualizarGraficoRadial(p);
     }
 
-    // Cálculo ponderado estricto para las 4 cajas superiores de métricas
+    // CÁLCULO ESTRICTO DE MÉTRICAS GLOBALES
     function actualizarKPISGlobales() {
         const activos = participantes.filter(p => !p.retirado);
-        
+        const retirados = participantes.filter(p => p.retirado);
+        const totalCohorte = participantes.length; // Total histórico (Activos + Retirados)
+
+        // Función para promediar métricas ÚNICAMENTE entre aspirantes ACTIVOS
         const f = met => {
-            const vals = activos.map(p => p.puntuaciones?.[met]).filter(v => v !== null && !isNaN(v)).map(Number);
+            const vals = activos
+                .map(p => p.puntuaciones?.[met])
+                .filter(v => v !== null && v !== undefined && !isNaN(v))
+                .map(Number);
             if (!vals.length) return "0.0";
             const media = vals.reduce((a, b) => a + b, 0) / vals.length;
-            return Math.min(5.0, media).toFixed(1);
+            return Math.min(5.0, Math.max(0.0, media)).toFixed(1);
         };
 
         document.getElementById('kpiGlobalAsistencia').innerHTML = `${f('Asistencia')} <span>/ 5.0</span>`;
@@ -928,18 +961,24 @@
         const talleresQuiz = Math.min(5.0, (tall + qz) / 2).toFixed(1);
         document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${talleresQuiz} <span>/ 5.0</span>`;
 
-        // Rotación real: (Retirados / Cohorte Inicial Total) * 100
-        const ret = participantes.filter(p => p.retirado).length;
-        const totalCohorte = participantes.length;
-        const rot = totalCohorte ? ((ret / totalCohorte) * 100).toFixed(1) : "0.0";
-        document.getElementById('kpiGlobalRotacion').innerHTML = `${rot}% <span>(${ret})</span>`;
+        // Rotación real = (Retirados / Total Cohorte Inicial) * 100
+        const rotacionPct = totalCohorte > 0 ? ((retirados.length / totalCohorte) * 100).toFixed(1) : "0.0";
+        document.getElementById('kpiGlobalRotacion').innerHTML = `${rotacionPct}% <span>(${retirados.length})</span>`;
         
         const tip = document.getElementById('tooltipRotacion');
-        if (tip) tip.innerText = totalCohorte ? `${ret} aspirante(s) retirado(s) de ${totalCohorte} total registrado.` : 'Sin registros.';
+        if (tip) {
+            tip.innerText = totalCohorte 
+                ? `${retirados.length} retirado(s) de un total de ${totalCohorte} participante(s) en la cohorte.` 
+                : 'Sin registros.';
+        }
     }
 
     function actualizarParticipantesActivos() {
-        document.getElementById('kpiParticipantesActivos').innerText = participantes.filter(p => !p.retirado).length;
+        const activos = participantes.filter(p => !p.retirado).length;
+        const total = participantes.length;
+        document.getElementById('kpiParticipantesActivos').innerText = activos;
+        const sub = document.getElementById('subtituloCohorte');
+        if (sub) sub.innerText = `${activos} activos de ${total} en la cohorte`;
     }
 
     function actualizarProgresoGlobal() {
@@ -1110,6 +1149,7 @@
         XLSX.writeFile(wb, "Formato_Cronograma.xlsx");
     }
 
+    // Procesar archivo de aspirantes: agrupa registros diarios y calcula el promedio ponderado en base 5
     function procesarArchivoCSV(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1117,18 +1157,38 @@
             const data = new Uint8Array(e.target.result);
             const wb = XLSX.read(data, { type: 'array' });
             const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            setSyncStatus(true);
-            const batch = db.batch();
+
+            const agrupados = new Map();
+
             json.forEach(r => {
                 const id = String(r.CEDULA || r.Cedula || '').trim();
                 const nom = String(r.NOMBRE || r.Nombre || '').trim();
+                const dia = parseInt(r.DIA) || 1;
+                const esRet = String(r.ESTADO || '').toUpperCase().includes('RETIR');
+                const mot = r.MOTIVO || '';
+
                 if (id && nom) {
-                    const ref = db.collection("aspirantes").doc(id);
-                    batch.set(ref, {
-                        id, nombre: nom, pais: r.PAIS || 'Colombia',
-                        retirado: String(r.ESTADO||'').toUpperCase().includes('RETIR'),
-                        motivoRetiro: r.MOTIVO || '',
-                        diaRetiro: parseInt(r.DIA) || null,
+                    if (!agrupados.has(id)) {
+                        agrupados.set(id, {
+                            id,
+                            nombre: nom,
+                            pais: r.PAIS || 'Colombia',
+                            retirado: esRet,
+                            motivoRetiro: esRet ? mot : '',
+                            diaRetiro: esRet ? dia : null,
+                            historial: []
+                        });
+                    }
+
+                    const asp = agrupados.get(id);
+                    if (esRet) {
+                        asp.retirado = true;
+                        asp.motivoRetiro = mot || asp.motivoRetiro;
+                        asp.diaRetiro = dia;
+                    }
+
+                    asp.historial.push({
+                        dia,
                         puntuaciones: {
                             Asistencia: notaSegura(r.ASISTENCIA) ?? 5.0,
                             Puntualidad: notaSegura(r.PUNTUALIDAD) ?? 5.0,
@@ -1137,12 +1197,21 @@
                             Actitudinal: notaSegura(r.ACTITUDINAL) ?? 5.0,
                             "Certificación Final": notaSegura(r["CERTIFICACION FINAL"])
                         }
-                    }, { merge: true });
+                    });
                 }
             });
+
+            setSyncStatus(true);
+            const batch = db.batch();
+            agrupados.forEach(asp => {
+                recalcularPromediosHistoricos(asp);
+                const ref = db.collection("aspirantes").doc(asp.id);
+                batch.set(ref, asp, { merge: true });
+            });
+
             await batch.commit();
             setSyncStatus(false);
-            alert(`✅ ${json.length} aspirantes subidos y sincronizados en Firebase.`);
+            alert(`✅ ${agrupados.size} aspirantes procesados y sincronizados en Firebase.`);
             event.target.value = "";
         };
         reader.readAsArrayBuffer(file);
