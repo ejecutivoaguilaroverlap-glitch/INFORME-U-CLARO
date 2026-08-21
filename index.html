@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seguimiento de Capacitación - Universidad Claro</title>
+    <title>Seguimiento de Capacitación</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- SDKs de Firebase (Versión CDN lista para navegador) -->
+    <!-- SDKs de Firebase (Compatibilidad CDN con Analytics) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
@@ -28,6 +28,7 @@
         header span { font-size: 0.9rem; background: rgba(255, 255, 255, 0.2); padding: 4px 12px; border-radius: 12px; }
 
         .container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; padding: 20px; flex: 1; max-width: 1400px; margin: 0 auto; width: 100%; }
+
         .sidebar { background: white; border-radius: 8px; padding: 15px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
         
         .config-dias-card { background: #F8FAF1; border: 1px solid #C8E6C9; padding: 10px; border-radius: 6px; margin-bottom: 5px; }
@@ -66,12 +67,15 @@
         .tab-btn:hover { background: #E0E0E0; }
         .tab-btn.active { background: var(--claro-red); color: white; }
         
+        @keyframes fadeInTab {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .tab-content { display: none; }
         .tab-content.active { display: block; animation: fadeInTab 0.4s ease-out forwards; }
         .tab-content-grid.active { display: grid; }
         .tab-content-grid { grid-template-rows: auto auto 1fr auto; gap: 20px; }
-
-        @keyframes fadeInTab { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
         .global-progress { background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 15px; }
         .global-progress-header { display: flex; justify-content: space-between; align-items: center; }
@@ -84,6 +88,11 @@
         .kpi-label { font-size: 0.75rem; color: #666; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; text-align: center;}
         .kpi-val { font-size: 1.3rem; font-weight: bold; color: var(--claro-dark); }
         .kpi-val span { font-size: 0.9rem; color: #888; font-weight: normal; }
+
+        .tooltip { cursor: help; }
+        .tooltip .tooltiptext { visibility: hidden; width: 280px; background-color: rgba(33, 37, 41, 0.95); color: #fff; text-align: left; border-radius: 8px; padding: 12px; position: absolute; z-index: 100; top: 110%; left: 50%; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s; font-size: 0.8rem; font-weight: normal; box-shadow: 0 4px 8px rgba(0,0,0,0.3); line-height: 1.4; max-height: 250px; overflow-y: auto;}
+        .tooltip .tooltiptext::after { content: ""; position: absolute; bottom: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: transparent transparent rgba(33, 37, 41, 0.95) transparent; }
+        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
 
         .metrics-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative;}
@@ -98,6 +107,11 @@
 
         .chart-container { background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); position: relative; height: 380px; width: 100%; display: flex; justify-content: center; align-items: center; z-index: 10; }
 
+        .kpi-certificacion { background: white; padding: 15px 25px; border-radius: 8px; border: 1px solid var(--border-color); border-left: 6px solid #FFC107; display: flex; justify-content: space-between; align-items: center; transition: opacity 0.3s; }
+        .kpi-certificacion h3 { font-size: 1.1rem; color: var(--claro-dark); margin: 0; }
+        .kpi-certificacion .kpi-value { font-size: 1.8rem; font-weight: bold; color: var(--claro-dark); }
+        .kpi-certificacion .kpi-subtitle { font-size: 0.9rem; color: #888; font-weight: normal; }
+
         .top5-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }
         .top5-card { background: white; border-radius: 10px; border: 1px solid var(--border-color); padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
         .top5-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 2px solid var(--bg-gray); }
@@ -105,29 +119,38 @@
         .top5-title.mejora { color: #EF6C00; }
         .top5-list { display: flex; flex-direction: column; gap: 10px; }
         .top5-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 8px; background: #FAFAFA; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; }
-        .top5-item:hover { transform: translateX(5px); border-color: var(--claro-red); background: #FFF; }
+        .top5-item:hover { transform: translateX(5px); border-color: var(--claro-red); background: #FFF; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
         .top5-rank { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; color: white; background: #888; }
         .top5-rank.rank-1 { background: #FFD700; color: #000; }
         .top5-rank.rank-2 { background: #C0C0C0; color: #000; }
         .top5-rank.rank-3 { background: #CD7F32; color: #fff; }
         .top5-info { flex: 1; margin-left: 12px; }
         .top5-nombre { font-weight: bold; font-size: 0.95rem; color: var(--claro-dark); }
+        .top5-id { font-size: 0.75rem; color: #777; }
         .top5-score { font-size: 1.1rem; font-weight: bold; color: var(--claro-dark); }
 
         .cronograma-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; margin-bottom: 30px; }
-        .dia-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        .dia-header { background: var(--claro-dark); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .dia-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; transition: transform 0.2s;}
+        .dia-card:hover { transform: translateY(-3px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .dia-header { background: var(--claro-dark); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; transition: background 0.3s; }
+        .dia-header h4 { margin: 0; font-size: 1.1rem; }
+        .asistencia-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; }
         .dia-body { padding: 15px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
         .dia-seccion h5 { color: var(--claro-red); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px; }
-        .dia-seccion ul { padding-left: 18px; font-size: 0.9rem; color: #444; }
+        .dia-seccion p, .dia-seccion ul { font-size: 0.9rem; color: #444; line-height: 1.4; margin: 0; }
+        .dia-seccion ul { padding-left: 18px; }
+
+        input[type="file"] { display: none; }
 
         .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; backdrop-filter: blur(3px); }
         .modal-content { background-color: var(--bg-gray); padding: 25px; border-radius: 12px; width: 90%; max-width: 1200px; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        .close-modal { position: absolute; right: 25px; top: 20px; font-size: 2rem; font-weight: bold; cursor: pointer; color: #555; }
+        .close-modal { position: absolute; right: 25px; top: 20px; font-size: 2rem; font-weight: bold; cursor: pointer; color: #555; line-height: 1; transition: 0.2s; }
+        .close-modal:hover { color: var(--claro-red); transform: scale(1.1); }
         
         .grid-general { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; margin-top: 25px; }
-        .aspirante-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
-        .ac-header { font-weight: bold; font-size: 1.15rem; color: var(--claro-dark); margin-bottom: 5px; }
+        .aspirante-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
+        .aspirante-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); border-color: var(--claro-red); }
+        .ac-header { font-weight: bold; font-size: 1.15rem; color: var(--claro-dark); margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .ac-info { font-size: 0.85rem; color: #666; margin-bottom: 12px; }
         .ac-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 10px; }
         .ac-nota { font-weight: bold; font-size: 1.3rem; color: var(--claro-dark); }
@@ -143,7 +166,31 @@
         .tabla-gestion th { background-color: var(--claro-dark); color: white; font-weight: bold; }
         .tabla-gestion tr:nth-child(even) { background-color: #FAFAFA; }
         .btn-acc-mini { border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; margin-right: 5px; }
+        .btn-acc-edit { background: #FF9800; color: white; }
         .btn-acc-del { background: #C62828; color: white; }
+
+        .reporte-section-title { display: none; }
+        .tabla-exportacion { display: none; width: 100%; border-collapse: collapse; margin-top: 20px; background: white; font-size: 0.9rem;}
+        .tabla-exportacion th, .tabla-exportacion td { border: 1px solid var(--border-color); padding: 10px; text-align: center; }
+        .tabla-exportacion th { background-color: var(--claro-dark); color: white; font-weight: bold; }
+        .tabla-exportacion tr:nth-child(even) { background-color: #FAFAFA; }
+
+        @media (max-width: 992px) {
+            .container { grid-template-columns: 1fr; }
+            .sidebar { flex-direction: row; flex-wrap: wrap; justify-content: space-between; }
+            .sidebar > * { flex: 1 1 48%; }
+            .aspirantes-list { flex: 1 1 100%; max-height: 200px; }
+            .equipo-kpis { grid-template-columns: repeat(2, 1fr); }
+            .top5-container { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; text-align: center; gap: 10px; }
+            .metrics-cards { grid-template-columns: 1fr; }
+            .kpi-certificacion { flex-direction: column; text-align: center; gap: 10px; }
+            .form-row { grid-template-columns: 1fr; }
+            .sidebar > * { flex: 1 1 100%; }
+        }
 
         .active-participants-card {
             display:flex; align-items:center; gap:14px;
@@ -152,28 +199,63 @@
             padding:16px 20px; margin-bottom:18px;
             box-shadow:0 4px 12px rgba(0,0,0,.06);
         }
-        .active-participants-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:25px; background:#eef4ff; }
-        .active-participants-label { font-size:13px; font-weight:700; color:#5f6b7a; text-transform:uppercase; letter-spacing:.4px; }
-        .active-participants-value { font-size:30px; line-height:1.1; font-weight:800; color:#1d4ed8; margin-top:2px; }
-        .active-participants-subtitle { font-size:12px; color:#7a8491; margin-top:3px; }
-        
+        .active-participants-icon {
+            width:48px; height:48px; border-radius:12px;
+            display:flex; align-items:center; justify-content:center;
+            font-size:25px; background:#eef4ff;
+        }
+        .active-participants-label {
+            font-size:13px; font-weight:700; color:#5f6b7a;
+            text-transform:uppercase; letter-spacing:.4px;
+        }
+        .active-participants-value {
+            font-size:30px; line-height:1.1; font-weight:800;
+            color:#1d4ed8; margin-top:2px;
+        }
+        .active-participants-subtitle {
+            font-size:12px; color:#7a8491; margin-top:3px;
+        }
+        .carga-resultado-ok { border-left:4px solid #2e7d32; }
+        .carga-resultado-error { border-left:4px solid #c62828; }
+        .carga-resultado-warning { border-left:4px solid #ef6c00; }
+        .carga-resultado-lista { margin:8px 0 0 18px; padding:0; }
+        .carga-resultado-lista li { margin:3px 0; }
+
+        .creditos-institucionales{
+            width:100%; box-sizing:border-box; margin-top:28px; padding:18px 24px;
+            border-top:1px solid rgba(0,0,0,.12);
+            background:linear-gradient(180deg,#fff,#f8f9fb);
+            text-align:center; color:#5f6368; font-size:12px; line-height:1.6;
+        }
+        .creditos-institucionales .credito-principal{font-weight:700;color:#30343b;letter-spacing:.2px}
+        .creditos-institucionales .credito-secundario{margin-top:2px;color:#777d86}
+        .creditos-institucionales .credito-derechos{margin-top:5px;font-size:11px;color:#9298a0}
+
         .config-operacion-card{background:#fff;border:1px solid #dbe5f5;border-radius:12px;padding:14px 15px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
         .config-operacion-card h3{margin:0 0 10px;color:#263238;font-size:14px}
         .config-operacion-grid{display:grid;grid-template-columns:1fr;gap:8px}
-        .config-operacion-grid label{font-size:11px;font-weight:700;color:#667085;text-transform:uppercase;}
+        .config-operacion-grid label{font-size:11px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.3px}
         .config-operacion-grid input{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #d7dee8;border-radius:7px;font-size:13px}
         .config-operacion-actions{display:flex;gap:7px;margin-top:10px}
         .config-operacion-actions button{flex:1}
-        
+
+        .logo-operacion-config{margin-top:12px;padding-top:12px;border-top:1px solid #e0e0e0;}
+        .logo-operacion-preview{display:flex;align-items:center;gap:12px;margin-top:8px;min-height:64px;}
+        .logo-operacion-preview img{max-width:180px;max-height:70px;object-fit:contain;border:1px solid #e1e5eb;border-radius:8px;padding:6px;background:#fff;}
+        .logo-operacion-placeholder{font-size:12px;color:#777d86;}
+        .logo-operacion-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
         .reporte-corporativo-header{
-            display:grid; grid-template-columns:minmax(150px,220px) 1fr;
+            position:relative; overflow:hidden; display:grid; grid-template-columns:minmax(150px,220px) 1fr;
             align-items:center; gap:24px; padding:22px 26px; margin:0 0 18px;
             border:1px solid #dfe5ee; border-radius:16px;
             background:linear-gradient(135deg,#ffffff 0%,#f7f9fc 100%);
             box-shadow:0 8px 22px rgba(31,45,61,.07);
         }
+        .reporte-corporativo-header:before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--claro-red),var(--claro-dark));}
         .reporte-corporativo-marca{display:flex;align-items:center;justify-content:center;min-height:76px;padding:8px 14px;background:#fff;border:1px solid #e4e9f0;border-radius:12px;}
-        .reporte-corporativo-sin-logo{font-size:11px;color:#98a2b3;text-align:center;font-weight:700;text-transform:uppercase;}
+        .reporte-corporativo-marca img{display:block;max-width:185px;max-height:76px;object-fit:contain;}
+        .reporte-corporativo-sin-logo{font-size:11px;color:#98a2b3;text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
         .reporte-corporativo-kicker{margin:0 0 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#667085;}
         .reporte-corporativo-titulo{margin:0;color:#172b4d;font-size:24px;line-height:1.15;font-weight:800;}
         .reporte-corporativo-subtitulo{margin:6px 0 0;color:#667085;font-size:13px;line-height:1.45;}
@@ -182,666 +264,860 @@
         .identidad-reporte-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;}
         .identidad-reporte-item{padding:6px 13px;border-right:1px solid #e8edf3;}
         .identidad-reporte-item:last-child{border-right:0;}
-        .identidad-reporte-item span{display:block;font-size:9px;text-transform:uppercase;color:#8a94a6;font-weight:800;}
-        .identidad-reporte-item strong{display:block;margin-top:3px;color:#26364d;font-size:13px;}
+        .identidad-reporte-item span{display:block;font-size:9px;text-transform:uppercase;color:#8a94a6;font-weight:800;letter-spacing:.65px;}
+        .identidad-reporte-item strong{display:block;margin-top:3px;color:#26364d;font-size:13px;word-break:break-word;}
 
-        .cloud-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #2E7D32; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; }
+        .cloud-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #2E7D32; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; font-weight: bold; margin-bottom: 5px; }
         .cloud-badge.syncing { color: #0288D1; background: #E1F5FE; }
+
+        /* Estilos de Splash de Inicio */
+        .startup-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;background:radial-gradient(circle at 50% 42%, rgba(225,0,30,.12), transparent 30%), radial-gradient(circle at 50% 50%, rgba(20,35,60,.5), transparent 62%), #05070b;transition:opacity .65s ease,visibility .65s ease;}
+        .startup-splash.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+        .startup-card{position:relative;z-index:2;width:min(520px,calc(100% - 40px));padding:42px 42px 34px;text-align:center;border:1px solid rgba(255,255,255,.13);border-radius:24px;background:rgba(16,18,22,.76);box-shadow:0 30px 80px rgba(0,0,0,.42);backdrop-filter:blur(14px);}
+        .startup-logo-wrap{width:126px;height:126px;margin:0 auto 22px;border-radius:28px;display:flex;align-items:center;justify-content:center;background:#fff;}
+        .startup-logo{width:106px;height:106px;object-fit:contain;}
+        .startup-kicker{font-size:11px;letter-spacing:2.6px;text-transform:uppercase;font-weight:800;color:rgba(255,255,255,.6);margin-bottom:8px;}
+        .startup-title{font-size:clamp(25px,5vw,36px);font-weight:800;line-height:1.08;margin:0;color:#fff;}
+        .startup-title span{color:#ef3829;}
+        .startup-status{margin-top:12px;min-height:21px;color:rgba(255,255,255,.72);font-size:13px;}
+        .startup-progress{height:7px;margin-top:25px;background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden;}
+        .startup-progress-bar{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#ef3829,#ff6658);transition:width .35s ease;}
+        .startup-progress-meta{display:flex;justify-content:space-between;margin-top:9px;font-size:10px;color:rgba(255,255,255,.42);}
+        .startup-footer{margin-top:22px;font-size:10px;color:rgba(255,255,255,.35);}
+        .startup-credits{margin-top:8px;font-size:13px;font-weight:900;color:#fff;}
+        .startup-credits strong{color:#ff314d;}
     </style>
 </head>
 <body>
 
-    <header>
-        <h1 id="appHeaderTitle">Campaña - Evaluación de Aspirantes</h1>
-        <span id="headerSubtitle">Panel Oficial en Tiempo Real</span>
-    </header>
+<div id="startupSplash" class="startup-splash" aria-label="Cargando aplicación">
+    <div class="startup-card">
+        <div class="startup-logo-wrap">
+            <img class="startup-logo" src="data:image/webp;base64,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" alt="Universidad Claro">
+        </div>
+        <div class="startup-kicker">Entorno corporativo</div>
+        <h1 class="startup-title">Preparando <span>Claro</span></h1>
+        <div class="startup-status" id="startupStatus">Conectando con Firebase...</div>
+        <div class="startup-progress"><div class="startup-progress-bar" id="startupProgressBar"></div></div>
+        <div class="startup-progress-meta"><span>Inicializando</span><span id="startupProgressValue">0%</span></div>
+        <div class="startup-footer">
+            <div>Universidad Claro · Plataforma de seguimiento de capacitación</div>
+            <div class="startup-credits"><strong>Derechos de autor © Ing. Edison Aguilar</strong><br>Todos los derechos reservados.</div>
+        </div>
+    </div>
+</div>
 
-    <main class="container">
-        <aside class="sidebar" aria-label="Controles de Administración">
-            <div id="cloudStatus" class="cloud-badge">☁️ Conectado a Firebase</div>
+<header>
+    <h1 id="appHeaderTitle">Campaña - Evaluación de Aspirantes</h1>
+    <span id="headerSubtitle">Panel de Administración en Tiempo Real</span>
+</header>
 
-            <div class="config-operacion-card admin-control">
-                <h3>⚙️ Configuración Operación</h3>
-                <div class="config-operacion-grid">
-                    <div><label for="configCampana">Campaña</label><input id="configCampana" type="text" placeholder="Ej: PQR"></div>
-                    <div><label for="configCliente">Cliente</label><input id="configCliente" type="text" placeholder="Ej: Claro"></div>
-                    <div><label for="configSede">Sede</label><input id="configSede" type="text" placeholder="Ej: Atento"></div>
-                    <div><label for="configCiudad">Ciudad</label><input id="configCiudad" type="text" placeholder="Ej: Bogotá"></div>
-                    <div><label for="configPais">País</label><input id="configPais" type="text" placeholder="Ej: Colombia"></div>
-                </div>
-                <div class="config-operacion-actions">
-                    <button type="button" class="btn-primary" onclick="guardarConfiguracionOperacion()">Guardar Nube</button>
-                    <button type="button" class="btn-secondary" onclick="limpiarConfiguracionOperacion()">Limpiar</button>
+<main class="container">
+    <aside class="sidebar" aria-label="Controles de Administración">
+        <div id="cloudStatus" class="cloud-badge">☁️ Conectado a Firebase</div>
+
+        <div class="config-operacion-card admin-control">
+            <h3>⚙️ Información de la operación</h3>
+            <div class="config-operacion-grid">
+                <div><label for="configCampana">Campaña</label><input id="configCampana" type="text" placeholder="Ej: PQR"></div>
+                <div><label for="configCliente">Cliente</label><input id="configCliente" type="text" placeholder="Ej: Claro"></div>
+                <div><label for="configSede">Sede</label><input id="configSede" type="text" placeholder="Ej: Atento"></div>
+                <div><label for="configCiudad">Ciudad</label><input id="configCiudad" type="text" placeholder="Ej: Bogotá"></div>
+                <div><label for="configPais">País</label><input id="configPais" type="text" placeholder="Ej: Colombia"></div>
+                <div class="logo-operacion-config">
+                    <label for="inputLogoEmpresa">Logo de la empresa</label>
+                    <input type="file" id="inputLogoEmpresa" accept="image/png,image/jpeg,image/webp,image/svg+xml" onchange="procesarLogoEmpresa(event)">
+                    <div class="logo-operacion-preview" id="logoOperacionPreview"><span class="logo-operacion-placeholder">No hay logo cargado.</span></div>
+                    <div class="logo-operacion-actions">
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('inputLogoEmpresa').click()">🖼️ Seleccionar logo</button>
+                        <button type="button" class="btn-secondary" onclick="quitarLogoEmpresa()">🗑️ Quitar logo</button>
+                    </div>
                 </div>
             </div>
-
-            <div class="config-dias-card">
-                <label for="inputMetaDias">⚙️ Proyección Total Días:</label>
-                <input type="number" id="inputMetaDias" min="1" max="100" value="19" onchange="actualizarMetaDias(this.value)">
+            <div class="config-operacion-actions">
+                <button type="button" class="btn-primary" onclick="guardarConfiguracionOperacion()">Guardar Nube</button>
+                <button type="button" class="btn-secondary" onclick="limpiarConfiguracionOperacion()">Limpiar</button>
             </div>
+        </div>
 
-            <button type="button" class="btn-success admin-control" onclick="document.getElementById('fileUpload').click()">
-                📊 Subir Aspirantes (.xlsx / .csv)
-            </button>
-            <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv" onchange="procesarArchivoExcel(event)" style="display:none">
+        <div class="config-dias-card">
+            <label for="inputMetaDias">⚙️ Proyección Total Días:</label>
+            <input type="number" id="inputMetaDias" min="1" max="100" value="19" onchange="actualizarMetaDias(this.value)">
+        </div>
 
-            <button class="btn-primary" onclick="abrirModal()">🗂️ Ver Cuadrícula de Aspirantes</button>
-            <button class="btn-purple admin-control" onclick="abrirModalGestionAspirantes()">👥 Gestionar Asistentes y Retiros</button>
-            <button class="btn-warning admin-control" onclick="abrirModalEditorCronograma()">✏️ Editar Cronograma</button>
+        <button type="button" class="btn-success admin-control" onclick="document.getElementById('fileUpload').click()">
+            📊 Subir / Actualizar Aspirantes (.xlsx / .csv)
+        </button>
+        <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv" onchange="procesarArchivoCSV(event)">
 
-            <div class="aspirantes-list" id="listaAspirantes" aria-label="Lista de Aspirantes"></div>
-        </aside>
+        <button type="button" class="btn-secondary admin-control" onclick="descargarFormatoCarga()">
+            📥 Descargar Formato de Carga
+        </button>
+        <div id="resultadoCargaExcel" class="admin-control" style="display:none; margin:10px 0 0; padding:12px 14px; border-radius:10px; background:#f7f9fc; border:1px solid #dfe5ec; font-size:13px;"></div>
 
-        <section class="main-panel" id="mainPanel" aria-label="Panel Principal">
-            <div class="active-participants-card" id="activeParticipantsCard">
-                <div class="active-participants-icon">👥</div>
+        <button class="btn-primary" onclick="abrirModal()">🗂️ Ver Cuadrícula de Aspirantes</button>
+        <button class="btn-purple admin-control" onclick="abrirModalGestionAspirantes()">👥 Gestionar Asistentes y Retiros</button>
+        <button class="btn-warning admin-control" onclick="abrirModalEditorCronograma()">✏️ Editar Cronograma y Asistencia</button>
+
+        <button type="button" class="btn-secondary admin-control" onclick="document.getElementById('fileCronogramaUpload').click()">
+            📅 Subir / Actualizar Cronograma
+        </button>
+        <input type="file" id="fileCronogramaUpload" accept=".xlsx,.xls,.csv" onchange="procesarArchivoCronograma(event)">
+
+        <button type="button" class="btn-secondary admin-control" onclick="descargarFormatoCronograma()">
+            📥 Descargar Formato Cronograma
+        </button>
+        <div id="resultadoCronogramaExcel" class="admin-control" style="display:none; margin:10px 0 0; padding:12px 14px; border-radius:10px; background:#f7f9fc; border:1px solid #dfe5ec; font-size:13px;"></div>
+
+        <button class="btn-info admin-control" onclick="exportarReporteHTML()">💾 Generar Reporte Ejecutivo</button>
+        
+        <hr class="admin-control" style="border: 0; border-top: 1px solid #E0E0E0; margin: 5px 0; width: 100%;">
+        
+        <div class="aspirantes-list" id="listaAspirantes" aria-label="Lista de Aspirantes"></div>
+        <button class="btn-danger admin-control" onclick="restablecerDatos()">Borrar Todo en Firebase</button>
+    </aside>
+
+    <section class="main-panel" id="mainPanel" aria-label="Panel Principal">
+        <div class="active-participants-card" id="activeParticipantsCard">
+            <div class="active-participants-icon">👥</div>
+            <div>
+                <div class="active-participants-label">Participantes activos</div>
+                <div class="active-participants-value" id="kpiParticipantesActivos">0</div>
+                <div class="active-participants-subtitle">Aspirantes sincronizados en la nube</div>
+            </div>
+        </div>
+
+        <div class="tabs-container" role="tablist">
+            <button class="tab-btn active" role="tab" onclick="cambiarPestana('tab-resumen', this)">Resumen General</button>
+            <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-top5', this)">🏆 Ranking Top 5 (Activos)</button>
+            <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-retiros', this)">🚨 Módulo de Retiros</button>
+            <button class="tab-btn" role="tab" id="btnTabCronograma" onclick="cambiarPestana('tab-cronograma', this)">Cronograma de Días (1-19)</button>
+        </div>
+
+        <article id="tab-resumen" class="tab-content tab-content-grid active">
+            <div class="reporte-corporativo-header" id="reporteCorporativoHeader">
+                <div class="reporte-corporativo-marca" id="logoReporteOperacion">
+                    <img id="logoReporteImagen" alt="Logo de la empresa" style="display:none;">
+                    <span id="logoReporteSinLogo" class="reporte-corporativo-sin-logo">Reporte corporativo</span>
+                </div>
                 <div>
-                    <div class="active-participants-label">Participantes activos</div>
-                    <div class="active-participants-value" id="kpiParticipantesActivos">0</div>
-                    <div class="active-participants-subtitle">Aspirantes sincronizados en Firebase</div>
+                    <div class="reporte-corporativo-kicker">Informe ejecutivo de capacitación</div>
+                    <h2 class="reporte-corporativo-titulo" id="reporteTituloCorporativo">Reporte Ejecutivo</h2>
+                    <p class="reporte-corporativo-subtitulo" id="reporteSubtituloCorporativo">Resumen de desempeño, asistencia y evolución de la cohorte.</p>
+                </div>
+            </div>
+            
+            <div class="identidad-reporte" id="identidadOperacionReporte">
+                <div class="identidad-reporte-grid">
+                    <div class="identidad-reporte-item"><span>Campaña</span><strong id="reporteCampana">—</strong></div>
+                    <div class="identidad-reporte-item"><span>Cliente</span><strong id="reporteCliente">—</strong></div>
+                    <div class="identidad-reporte-item"><span>Sede</span><strong id="reporteSede">—</strong></div>
+                    <div class="identidad-reporte-item"><span>Ciudad</span><strong id="reporteCiudad">—</strong></div>
+                    <div class="identidad-reporte-item"><span>País</span><strong id="reportePais">—</strong></div>
                 </div>
             </div>
 
-            <div class="tabs-container" role="tablist">
-                <button class="tab-btn active" role="tab" onclick="cambiarPestana('tab-resumen', this)">Resumen General</button>
-                <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-top5', this)">🏆 Ranking Top 5</button>
-                <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-retiros', this)">🚨 Módulo de Retiros</button>
-                <button class="tab-btn" role="tab" id="btnTabCronograma" onclick="cambiarPestana('tab-cronograma', this)">Cronograma (1-19)</button>
+            <h2 class="reporte-section-title">1. Métricas Globales e Individuales</h2>
+            <div class="global-progress">
+                <div class="global-progress-header">
+                    <h2 id="tituloProgresoCapacitacion">📅 Progreso de capacitación</h2>
+                    <div class="global-progress-stats" id="textoProgresoGlobal">Día 1 / 19 (5%)</div>
+                </div>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" id="barraProgresoGlobal"></div></div>
+                
+                <div class="equipo-kpis">
+                    <div class="kpi-box"><span class="kpi-label">Asistencia</span><div class="kpi-val" id="kpiGlobalAsistencia">0.0 <span>/ 5.0</span></div></div>
+                    <div class="kpi-box"><span class="kpi-label">Puntualidad</span><div class="kpi-val" id="kpiGlobalPuntualidad">0.0 <span>/ 5.0</span></div></div>
+                    <div class="kpi-box" style="background-color: #E8F5E9; border-color: #2E7D32;"><span class="kpi-label" style="color: #2E7D32;">Talleres & Quiz</span><div class="kpi-val" id="kpiGlobalTalleresQuiz" style="color: #2E7D32;">0.0 <span>/ 5.0</span></div></div>
+                    <div class="kpi-box tooltip" style="background-color: #FFEBEE; border-color: #C62828;"><span class="kpi-label" style="color: #C62828;">Rotación (Retiros)</span><div class="kpi-val" id="kpiGlobalRotacion" style="color: #C62828;">0% <span>(0)</span></div><div class="tooltiptext" id="tooltipRotacion">Sin retiros registrados.</div></div>
+                </div>
             </div>
 
-            <article id="tab-resumen" class="tab-content tab-content-grid active">
-                <div class="reporte-corporativo-header">
-                    <div class="reporte-corporativo-marca">
-                        <span class="reporte-corporativo-sin-logo">Universidad Claro</span>
-                    </div>
-                    <div>
-                        <div class="reporte-corporativo-kicker">Informe Ejecutivo</div>
-                        <h2 class="reporte-corporativo-titulo" id="reporteTituloCorporativo">Reporte Ejecutivo</h2>
-                        <p class="reporte-corporativo-subtitulo" id="reporteSubtituloCorporativo">Monitoreo de métricas y rendimiento en tiempo real.</p>
+            <div class="metrics-cards">
+                <div class="card">
+                    <h3>Aspirante</h3>
+                    <div class="value" id="nombreAspirante" style="font-size: 1.1rem; min-height: 30px; margin-bottom: 5px;">--</div>
+                    <div id="cedulaAspirante" style="font-size: 0.8rem; color: #666;">CC: -- | País: --</div>
+                </div>
+                <div class="card">
+                    <h3>Promedio Capacitación</h3>
+                    <div class="value" id="notaGeneral">0.0</div>
+                    <div style="font-size: 0.75rem; color: #888; margin-top:5px;">Métricas Base del Aspirante</div>
+                </div>
+                <div class="card">
+                    <h3>Estado del Aspirante</h3>
+                    <div class="value" style="margin-top: 5px; display: flex; flex-direction: column; align-items: center;">
+                        <span id="estadoAspirante" class="estado-badge">--</span>
+                        <div id="infoRetiroIndividual" style="font-size: 0.75rem; color: #C62828; margin-top: 4px; text-align: center;"></div>
                     </div>
                 </div>
+            </div>
 
-                <div class="identidad-reporte">
-                    <div class="identidad-reporte-grid">
-                        <div class="identidad-reporte-item"><span>Campaña</span><strong id="reporteCampana">—</strong></div>
-                        <div class="identidad-reporte-item"><span>Cliente</span><strong id="reporteCliente">—</strong></div>
-                        <div class="identidad-reporte-item"><span>Sede</span><strong id="reporteSede">—</strong></div>
-                        <div class="identidad-reporte-item"><span>Ciudad</span><strong id="reporteCiudad">—</strong></div>
-                        <div class="identidad-reporte-item"><span>País</span><strong id="reportePais">—</strong></div>
-                    </div>
+            <div class="chart-container" id="chartContainer"><canvas id="radarChart"></canvas></div>
+            <div id="tablaPromediosContainer"></div>
+
+            <div class="kpi-certificacion" id="kpiBannerCertificacion">
+                <h3 id="tituloCertificacion">🏆 Certificación Final (Día 19)</h3>
+                <div class="kpi-value" id="kpiCertificacionFinal">--</div>
+            </div>
+        </article>
+
+        <article id="tab-top5" class="tab-content">
+            <h2 class="reporte-section-title">2. Clasificación de Desempeño</h2>
+            <div class="top5-container">
+                <div class="top5-card">
+                    <div class="top5-title mejores"><span>🥇</span> Top 5 - Mejores Calificaciones</div>
+                    <div class="top5-list" id="listaTop5Mejores"></div>
                 </div>
-
-                <div class="global-progress">
-                    <div class="global-progress-header">
-                        <h2 id="tituloProgresoCapacitacion">📅 Progreso de capacitación</h2>
-                        <div class="global-progress-stats" id="textoProgresoGlobal">Día 1 / 19 (5%)</div>
-                    </div>
-                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="barraProgresoGlobal"></div></div>
-                    
-                    <div class="equipo-kpis">
-                        <div class="kpi-box"><span class="kpi-label">Asistencia</span><div class="kpi-val" id="kpiGlobalAsistencia">0.0 <span>/ 5.0</span></div></div>
-                        <div class="kpi-box"><span class="kpi-label">Puntualidad</span><div class="kpi-val" id="kpiGlobalPuntualidad">0.0 <span>/ 5.0</span></div></div>
-                        <div class="kpi-box" style="background-color: #E8F5E9;"><span class="kpi-label" style="color: #2E7D32;">Talleres & Quiz</span><div class="kpi-val" id="kpiGlobalTalleresQuiz" style="color: #2E7D32;">0.0 <span>/ 5.0</span></div></div>
-                        <div class="kpi-box" style="background-color: #FFEBEE;"><span class="kpi-label" style="color: #C62828;">Rotación</span><div class="kpi-val" id="kpiGlobalRotacion">0%</div></div>
-                    </div>
+                <div class="top5-card">
+                    <div class="top5-title mejora" id="tituloTop5Mejora"><span>⚠️</span> Oportunidad de Mejora (Promedio &lt; 3.9)</div>
+                    <div class="top5-list" id="listaTop5Mejora"></div>
                 </div>
+            </div>
+        </article>
 
-                <div class="metrics-cards">
-                    <div class="card">
-                        <h3>Aspirante</h3>
-                        <div class="value" id="nombreAspirante" style="font-size: 1.1rem;">--</div>
-                        <div id="cedulaAspirante" style="font-size: 0.8rem; color: #666;">CC: --</div>
-                    </div>
-                    <div class="card">
-                        <h3>Promedio</h3>
-                        <div class="value" id="notaGeneral">0.0</div>
-                    </div>
-                    <div class="card">
-                        <h3>Estado</h3>
-                        <div class="value"><span id="estadoAspirante" class="estado-badge">--</span></div>
-                    </div>
-                </div>
+        <article id="tab-retiros" class="tab-content">
+            <h2 style="color: var(--claro-dark); margin-bottom: 15px;">🚨 Registro Detallado de Retiros</h2>
+            <div id="contenedorTablaRetiros"></div>
+        </article>
 
-                <div class="chart-container"><canvas id="radarChart"></canvas></div>
-            </article>
+        <article id="tab-cronograma" class="tab-content">
+            <h2 class="reporte-section-title">3. Cronograma y Temario Diario</h2>
+            <div class="cronograma-grid" id="gridCronograma"></div>
+        </article>
+    </section>
+</main>
 
-            <article id="tab-top5" class="tab-content">
-                <div class="top5-container">
-                    <div class="top5-card">
-                        <div class="top5-title mejores">🥇 Top 5 - Mejores</div>
-                        <div class="top5-list" id="listaTop5Mejores"></div>
-                    </div>
-                    <div class="top5-card">
-                        <div class="top5-title mejora">⚠️ Oportunidad de Mejora</div>
-                        <div class="top5-list" id="listaTop5Mejora"></div>
-                    </div>
-                </div>
-            </article>
-
-            <article id="tab-retiros" class="tab-content">
-                <h2>🚨 Registro de Retiros</h2>
-                <div id="contenedorTablaRetiros" style="margin-top: 15px;"></div>
-            </article>
-
-            <article id="tab-cronograma" class="tab-content">
-                <h2>📅 Temario y Cronograma</h2>
-                <div class="cronograma-grid" id="gridCronograma" style="margin-top: 15px;"></div>
-            </article>
-        </section>
-    </main>
-
-    <!-- Modal Cuadrícula Aspirantes -->
-    <div id="modalTodos" class="modal-overlay">
-        <div class="modal-content">
-            <span class="close-modal" onclick="cerrarModal()">&times;</span>
-            <h2>🗂️ Panel General de Aspirantes</h2>
-            <div class="grid-general" id="gridGeneralAspirantes"></div>
-        </div>
+<!-- Modales -->
+<div id="modalTodos" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModal()">&times;</span>
+        <h2>🗂️ Panel General de la Cohorte</h2>
+        <div class="grid-general" id="gridGeneralAspirantes"></div>
     </div>
+</div>
 
-    <!-- Modal Gestión Aspirantes -->
-    <div id="modalGestionAspirantes" class="modal-overlay">
-        <div class="modal-content" style="max-width: 800px;">
-            <span class="close-modal" onclick="cerrarModalGestion()">&times;</span>
-            <h2>👥 Administrar Aspirantes</h2>
-            <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                <div class="form-row">
-                    <div class="form-group"><label>Cédula:</label><input type="text" id="inputCedula"></div>
-                    <div class="form-group"><label>Nombre:</label><input type="text" id="inputNombre"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label>País / Sede:</label><input type="text" id="inputPais"></div>
-                    <div class="form-group">
-                        <label>Estado:</label>
-                        <select id="selectRetirado" onchange="toggleCamposRetiroForm()">
-                            <option value="NO">Activo</option>
-                            <option value="SI">Retirado</option>
-                        </select>
-                    </div>
-                </div>
-                <div id="bloqueCamposRetiro" class="form-row" style="display: none;">
-                    <div class="form-group">
-                        <label>Motivo:</label>
-                        <select id="selectMotivoRetiro">
-                            <option value="RETIRO / VOLUNTARIO">RETIRO / VOLUNTARIO</option>
-                            <option value="RETIRO / PROCESOS INTERNOS">RETIRO / PROCESOS INTERNOS</option>
-                            <option value="RETIRO / DIAS DE CAPACITACION">RETIRO / DIAS DE CAPACITACION</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label>Día Retiro:</label><input type="number" id="inputDiaRetiro" min="1"></div>
-                </div>
-                <button class="btn-success" onclick="guardarAspiranteForm()">💾 Guardar en Firebase</button>
+<div id="modalGestionAspirantes" class="modal-overlay admin-control">
+    <div class="modal-content" style="max-width: 900px;">
+        <span class="close-modal" onclick="cerrarModalGestion()">&times;</span>
+        <h2>👥 Administrar Asistentes y Retiros</h2>
+        <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin: 15px 0;">
+            <h3 id="tituloFormAspirante" style="font-size: 1rem; color: var(--claro-red); margin-bottom: 10px;">➕ Agregar Nuevo Aspirante</h3>
+            <div class="form-row">
+                <div class="form-group"><label for="inputCedula">Cédula:</label><input type="text" id="inputCedula"></div>
+                <div class="form-group"><label for="inputNombre">Nombre Completo:</label><input type="text" id="inputNombre"></div>
             </div>
-            <table class="tabla-gestion">
-                <thead><tr><th>Cédula</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody id="tbodyAspirantesAdmin"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Modal Editor Cronograma -->
-    <div id="modalEditorCronograma" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <span class="close-modal" onclick="cerrarModalEditor()">&times;</span>
-            <h2>✏️ Editar Cronograma</h2>
-            <div class="form-group">
-                <label>Selecciona el Día:</label>
-                <select id="editDiaSelect" onchange="cargarDatosDiaEnEditor()"></select>
+            <div class="form-row">
+                <div class="form-group"><label for="inputPais">País / Sede:</label><input type="text" id="inputPais"></div>
+                <div class="form-group">
+                    <label for="selectRetirado">¿Está Retirado?:</label>
+                    <select id="selectRetirado" onchange="toggleCamposRetiroForm()">
+                        <option value="NO">No (Activo)</option>
+                        <option value="SI">Sí (Retirado)</option>
+                    </select>
+                </div>
             </div>
-            <div class="form-group"><label>Temas (1 por línea):</label><textarea id="editTemas"></textarea></div>
-            <div class="form-group"><label>Actividades (1 por línea):</label><textarea id="editActividades"></textarea></div>
-            <button class="btn-success" onclick="guardarEdicionDia()">💾 Guardar Día en Nube</button>
+            <div id="bloqueCamposRetiro" class="form-row" style="display: none; background: #FFEBEE; padding: 10px; border-radius: 6px;">
+                <div class="form-group">
+                    <label for="selectMotivoRetiro">Motivo de Retiro:</label>
+                    <select id="selectMotivoRetiro">
+                        <option value="RETIRO / VOLUNTARIO">RETIRO / VOLUNTARIO</option>
+                        <option value="RETIRO / PROCESOS INTERNOS">RETIRO / PROCESOS INTERNOS</option>
+                        <option value="RETIRO / DIAS DE CAPACITACION">RETIRO / DIAS DE CAPACITACION</option>
+                        <option value="RETIRO / MEJOR OFERTA">RETIRO / MEJOR OFERTA</option>
+                        <option value="RETIRO / EXAMENES MEDICOS">RETIRO / EXAMENES MEDICOS</option>
+                    </select>
+                </div>
+                <div class="form-group"><label for="inputDiaRetiro">Día de Retiro:</label><input type="number" id="inputDiaRetiro" min="1"></div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-success" id="btnGuardarAspirante" onclick="guardarAspiranteForm()" style="flex:1;">💾 Guardar Aspirante</button>
+                <button class="btn-primary" id="btnCancelarEdit" onclick="limpiarFormAspirante()" style="display:none; width: 120px; background:#666;">Cancelar</button>
+            </div>
         </div>
+        <table class="tabla-gestion">
+            <thead><tr><th>Cédula</th><th>Nombre</th><th>Estado</th><th>Motivo</th><th>Acciones</th></tr></thead>
+            <tbody id="tbodyAspirantesAdmin"></tbody>
+        </table>
     </div>
+</div>
 
-    <script>
-        // ==========================================
-        // 1. INICIALIZACIÓN DE FIREBASE Y ANALYTICS
-        // ==========================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyDRUZop0XLoaL5utAuh7XKK_qSOkZ1galI",
-            authDomain: "universidad-claro-ejecutivo.firebaseapp.com",
-            projectId: "universidad-claro-ejecutivo",
-            storageBucket: "universidad-claro-ejecutivo.firebasestorage.app",
-            messagingSenderId: "210221887443",
-            appId: "1:210221887443:web:c7a913d1dea9c108d6c926",
-            measurementId: "G-D4QVJQQEYK"
-        };
+<div id="modalEditorCronograma" class="modal-overlay admin-control">
+    <div class="modal-content" style="max-width: 650px;">
+        <span class="close-modal" onclick="cerrarModalEditor()">&times;</span>
+        <h2>✏️ Editar Día de Capacitación</h2>
+        <div class="form-group"><label for="editDiaSelect">Selecciona el Día:</label><select id="editDiaSelect" onchange="cargarDatosDiaEnEditor()"></select></div>
+        <div class="form-row">
+            <div class="form-group"><label for="editTotalEsperado">Total Esperados:</label><input type="number" id="editTotalEsperado" min="0"></div>
+            <div class="form-group"><label for="editPresentes">Presentes:</label><input type="number" id="editPresentes" min="0"></div>
+        </div>
+        <div class="form-group"><label for="editTemas">Temas Tratados (1 por línea):</label><textarea id="editTemas"></textarea></div>
+        <div class="form-group"><label for="editActividades">Actividades Realizadas (1 por línea):</label><textarea id="editActividades"></textarea></div>
+        <button class="btn-success" onclick="guardarEdicionDia()" style="width: 100%;">💾 Guardar Cambios en Nube</button>
+    </div>
+</div>
 
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        const analytics = firebase.analytics();
+<footer class="creditos-institucionales">
+    <div class="credito-principal">Derechos de autor © Ing. Edison Aguilar</div>
+    <div class="credito-secundario">Universidad Claro</div>
+    <div class="credito-derechos">Todos los derechos reservados.</div>
+</footer>
 
-        // ==========================================
-        // 2. ESTADO GLOBAL
-        // ==========================================
-        const metricasBase = ["Asistencia", "Puntualidad", "Talleres", "Quiz", "Actitudinal"];
-        let META_DIAS = 19;
-        let diaGlobalCapacitacion = 1;
-        let participantes = [];
-        let temarioPQR = [];
-        let CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
-        let aspiranteActivoId = null;
-        let chartInstance = null;
+<script id="main-script">
+    // 1. INICIALIZACIÓN OFICIAL DE FIREBASE
+    const firebaseConfig = {
+        apiKey: "AIzaSyDRUZop0XLoaL5utAuh7XKK_qSOkZ1galI",
+        authDomain: "universidad-claro-ejecutivo.firebaseapp.com",
+        projectId: "universidad-claro-ejecutivo",
+        storageBucket: "universidad-claro-ejecutivo.firebasestorage.app",
+        messagingSenderId: "210221887443",
+        appId: "1:210221887443:web:c7a913d1dea9c108d6c926",
+        measurementId: "G-D4QVJQQEYK"
+    };
 
-        function setSyncStatus(syncing) {
-            const el = document.getElementById("cloudStatus");
-            if (el) {
-                el.className = syncing ? "cloud-badge syncing" : "cloud-badge";
-                el.innerHTML = syncing ? "🔄 Sincronizando..." : "☁️ Conectado a Firebase";
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const analytics = firebase.analytics();
+
+    function setSyncStatus(syncing) {
+        const el = document.getElementById("cloudStatus");
+        if (el) {
+            el.className = syncing ? "cloud-badge syncing" : "cloud-badge";
+            el.innerHTML = syncing ? "🔄 Sincronizando..." : "☁️ Conectado a Firebase";
+        }
+    }
+
+    // 2. ESTADO GLOBAL
+    const metricasBase = ["Asistencia", "Puntualidad", "Talleres", "Quiz", "Actitudinal"];
+    let META_DIAS = 19;
+    let diaGlobalCapacitacion = 1;
+    let participantes = [];
+    let temarioPQR = [];
+    let registrosAsistenciaManual = {};
+    let cronogramaOficialCargado = false;
+    let CONFIG_OPERACION = { campana:'', cliente:'', sede:'', ciudad:'', pais:'' };
+    let LOGO_EMPRESA = '';
+    let aspiranteActivoId = null;
+    let chartInstance = null;
+    let idEditando = null;
+
+    function escapeHTML(str) {
+        if (!str) return "";
+        return String(str).replace(/[&<>'"]/g, tag => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        }[tag]));
+    }
+
+    function normalizarNombre(v) { return String(v ?? '').trim().replace(/\s+/g, ' '); }
+
+    // 3. SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE
+    function escucharDatosFirebase() {
+        // Escuchar Configuración General
+        db.collection("configuracion").doc("general").onSnapshot(doc => {
+            if (doc.exists) {
+                const d = doc.data();
+                CONFIG_OPERACION = d.operacion || CONFIG_OPERACION;
+                META_DIAS = d.metaDias || META_DIAS;
+                LOGO_EMPRESA = d.logo || '';
+                document.getElementById('inputMetaDias').value = META_DIAS;
+                actualizarIdentidadOperacion();
+                actualizarLogoEmpresa();
+                actualizarMetaDiasUI();
             }
-        }
+        });
 
-        // ==========================================
-        // 3. SINCRONIZACIÓN EN TIEMPO REAL
-        // ==========================================
-        function escucharDatosNube() {
-            db.collection("configuracion").doc("general").onSnapshot((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    CONFIG_OPERACION = data.operacion || CONFIG_OPERACION;
-                    META_DIAS = data.metaDias || META_DIAS;
-                    diaGlobalCapacitacion = data.diaGlobal || diaGlobalCapacitacion;
-                    
-                    document.getElementById('inputMetaDias').value = META_DIAS;
-                    actualizarIdentidadOperacion();
-                    actualizarProgresoGlobal();
-                }
-            });
+        // Escuchar Cronograma y Asistencias
+        db.collection("configuracion").doc("cronograma").onSnapshot(doc => {
+            if (doc.exists) {
+                const d = doc.data();
+                temarioPQR = d.temario || [];
+                registrosAsistenciaManual = d.asistencias || {};
+                diaGlobalCapacitacion = d.diaGlobal || 1;
+                cronogramaOficialCargado = d.cargado || false;
+                actualizarProgresoGlobal();
+                renderizarCronograma();
+            }
+        });
 
-            db.collection("configuracion").doc("cronograma").onSnapshot((doc) => {
-                if (doc.exists) {
-                    temarioPQR = doc.data().dias || [];
-                    renderizarCronograma();
-                }
-            });
-
-            db.collection("aspirantes").onSnapshot((snapshot) => {
-                setSyncStatus(true);
-                const lista = [];
-                snapshot.forEach((doc) => lista.push(doc.data()));
-                participantes = lista;
-
-                popularListaAspirantes();
-                actualizarKPISGlobales();
-                actualizarParticipantesActivos();
-                renderizarTop5();
-                renderizarTablaModuloRetiros();
-                renderizarTablaAdminAspirantes();
-
-                if (participantes.length > 0) {
-                    if (!aspiranteActivoId || !participantes.some(p => p.id === aspiranteActivoId)) {
-                        seleccionarAspirante(participantes[0].id);
-                    } else {
-                        const pAct = participantes.find(p => p.id === aspiranteActivoId);
-                        if (pAct) actualizarPanelDetalles(pAct);
-                    }
-                }
-                setTimeout(() => setSyncStatus(false), 400);
-            });
-        }
-
-        // ==========================================
-        // 4. FUNCIONES DE INTERFAZ Y KPIs
-        // ==========================================
-        function normalizarTexto(v) { return String(v ?? '').trim().replace(/\s+/g, ' '); }
-
-        function actualizarIdentidadOperacion() {
-            document.getElementById('configCampana').value = CONFIG_OPERACION.campana || '';
-            document.getElementById('configCliente').value = CONFIG_OPERACION.cliente || '';
-            document.getElementById('configSede').value = CONFIG_OPERACION.sede || '';
-            document.getElementById('configCiudad').value = CONFIG_OPERACION.ciudad || '';
-            document.getElementById('configPais').value = CONFIG_OPERACION.pais || '';
-
-            document.getElementById('reporteCampana').textContent = CONFIG_OPERACION.campana || '—';
-            document.getElementById('reporteCliente').textContent = CONFIG_OPERACION.cliente || '—';
-            document.getElementById('reporteSede').textContent = CONFIG_OPERACION.sede || '—';
-            document.getElementById('reporteCiudad').textContent = CONFIG_OPERACION.ciudad || '—';
-            document.getElementById('reportePais').textContent = CONFIG_OPERACION.pais || '—';
-
-            document.getElementById('appHeaderTitle').textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes`;
-        }
-
-        async function guardarConfiguracionOperacion() {
+        // Escuchar Aspirantes en Tiempo Real
+        db.collection("aspirantes").onSnapshot(snapshot => {
             setSyncStatus(true);
-            CONFIG_OPERACION = {
-                campana: normalizarTexto(document.getElementById('configCampana').value),
-                cliente: normalizarTexto(document.getElementById('configCliente').value),
-                sede: normalizarTexto(document.getElementById('configSede').value),
-                ciudad: normalizarTexto(document.getElementById('configCiudad').value),
-                pais: normalizarTexto(document.getElementById('configPais').value)
-            };
-            await db.collection("configuracion").doc("general").set({
-                operacion: CONFIG_OPERACION,
-                metaDias: META_DIAS,
-                diaGlobal: diaGlobalCapacitacion
-            }, { merge: true });
-            setSyncStatus(false);
-            alert("✅ Configuración guardada en Firebase.");
+            const lista = [];
+            snapshot.forEach(doc => lista.push(doc.data()));
+            participantes = lista;
+
+            popularListaAspirantes();
+            actualizarKPISGlobales();
+            actualizarParticipantesActivos();
+            renderizarTop5();
+            renderizarTablaModuloRetiros();
+            renderizarTablaAdminAspirantes();
+
+            if (participantes.length > 0) {
+                if (!aspiranteActivoId || !participantes.some(p => p.id === aspiranteActivoId)) {
+                    seleccionarAspirante(participantes[0].id);
+                } else {
+                    const pAct = participantes.find(p => p.id === aspiranteActivoId);
+                    if (pAct) actualizarPanelDetalles(pAct);
+                }
+            }
+            setTimeout(() => setSyncStatus(false), 300);
+        });
+    }
+
+    // 4. FUNCIONES DE INTERFAZ Y REGLAS DE NEGOCIO
+    function procesarLogoEmpresa(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+            LOGO_EMPRESA = String(reader.result || '');
+            await db.collection("configuracion").doc("general").set({ logo: LOGO_EMPRESA }, { merge: true });
+            actualizarLogoEmpresa();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function actualizarLogoEmpresa() {
+        const prev = document.getElementById('logoOperacionPreview');
+        if (prev) prev.innerHTML = LOGO_EMPRESA ? `<img src="${LOGO_EMPRESA}" alt="Logo">` : '<span class="logo-operacion-placeholder">No hay logo cargado.</span>';
+        const img = document.getElementById('logoReporteImagen');
+        const sinLogo = document.getElementById('logoReporteSinLogo');
+        if (img) {
+            if (LOGO_EMPRESA) { img.src = LOGO_EMPRESA; img.style.display = 'block'; if (sinLogo) sinLogo.style.display = 'none'; }
+            else { img.removeAttribute('src'); img.style.display = 'none'; if (sinLogo) sinLogo.style.display = 'block'; }
         }
+    }
 
-        function limpiarConfiguracionOperacion() {
-            CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
-            guardarConfiguracionOperacion();
-        }
+    async function quitarLogoEmpresa() {
+        LOGO_EMPRESA = '';
+        await db.collection("configuracion").doc("general").set({ logo: '' }, { merge: true });
+        actualizarLogoEmpresa();
+    }
 
-        async function actualizarMetaDias(valor) {
-            META_DIAS = parseInt(valor) || 19;
-            await db.collection("configuracion").doc("general").set({ metaDias: META_DIAS }, { merge: true });
-        }
+    function actualizarIdentidadOperacion() {
+        document.getElementById('configCampana').value = CONFIG_OPERACION.campana || '';
+        document.getElementById('configCliente').value = CONFIG_OPERACION.cliente || '';
+        document.getElementById('configSede').value = CONFIG_OPERACION.sede || '';
+        document.getElementById('configCiudad').value = CONFIG_OPERACION.ciudad || '';
+        document.getElementById('configPais').value = CONFIG_OPERACION.pais || '';
 
-        function calcularPromedioGeneral(puntuaciones) {
-            if (!puntuaciones) return null;
-            const vals = metricasBase.map(m => puntuaciones[m]).filter(v => v !== null && !isNaN(v)).map(Number);
-            return vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
-        }
+        document.getElementById('reporteCampana').textContent = CONFIG_OPERACION.campana || '—';
+        document.getElementById('reporteCliente').textContent = CONFIG_OPERACION.cliente || '—';
+        document.getElementById('reporteSede').textContent = CONFIG_OPERACION.sede || '—';
+        document.getElementById('reporteCiudad').textContent = CONFIG_OPERACION.ciudad || '—';
+        document.getElementById('reportePais').textContent = CONFIG_OPERACION.pais || '—';
 
-        function determinarEstado(promedio, retirado = false) {
-            if (retirado) return { texto: "Retirado", clase: "estado-noapto" };
-            if (promedio === null) return { texto: "Pendiente", clase: "estado-riesgo" };
-            if (promedio >= 4.5) return { texto: "Sobresaliente", clase: "estado-sobresaliente" };
-            if (promedio >= 3.5) return { texto: "Satisfactorio", clase: "estado-satisfactorio" };
-            if (promedio >= 3.0) return { texto: "En Riesgo", clase: "estado-riesgo" };
-            return { texto: "No Apto", clase: "estado-noapto" };
-        }
+        document.getElementById('appHeaderTitle').textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes`;
+    }
 
-        function popularListaAspirantes() {
-            const lista = document.getElementById("listaAspirantes");
-            lista.innerHTML = '';
-            participantes.forEach((p) => {
-                const item = document.createElement("div");
-                item.className = `aspirante-item ${aspiranteActivoId === p.id ? 'activo' : ''}`;
-                item.id = `item-${p.id}`;
-                const prom = calcularPromedioGeneral(p.puntuaciones);
-                item.innerHTML = `
-                    <div class="aspirante-header"><span>${p.nombre}</span><span class="aspirante-nota-mini">${prom === null ? '--' : prom.toFixed(2)}</span></div>
-                    <span class="aspirante-cedula">CC: ${p.id} | 🌍 ${p.pais || 'Colombia'}</span>
-                    ${p.retirado ? '<span class="badge-retirado-list">Retirado</span>' : ''}
-                `;
-                item.onclick = () => seleccionarAspirante(p.id);
-                lista.appendChild(item);
-            });
-        }
+    async function guardarConfiguracionOperacion() {
+        setSyncStatus(true);
+        CONFIG_OPERACION = {
+            campana: normalizarNombre(document.getElementById('configCampana').value),
+            cliente: normalizarNombre(document.getElementById('configCliente').value),
+            sede: normalizarNombre(document.getElementById('configSede').value),
+            ciudad: normalizarNombre(document.getElementById('configCiudad').value),
+            pais: normalizarNombre(document.getElementById('configPais').value)
+        };
+        await db.collection("configuracion").doc("general").set({ operacion: CONFIG_OPERACION }, { merge: true });
+        setSyncStatus(false);
+        alert("✅ Configuración guardada en Firebase.");
+    }
 
-        function seleccionarAspirante(id) {
-            aspiranteActivoId = id;
-            document.querySelectorAll('.aspirante-item').forEach(el => el.classList.remove('activo'));
-            const sel = document.getElementById(`item-${id}`);
-            if (sel) sel.classList.add('activo');
+    async function limpiarConfiguracionOperacion() {
+        CONFIG_OPERACION = { campana:'', cliente:'', sede:'', ciudad:'', pais:'' };
+        await db.collection("configuracion").doc("general").set({ operacion: CONFIG_OPERACION }, { merge: true });
+    }
 
-            const p = participantes.find(part => part.id === id);
-            if (p) actualizarPanelDetalles(p);
-            cerrarModal();
-        }
+    async function actualizarMetaDias(nuevoValor) {
+        let val = parseInt(nuevoValor) || 1;
+        META_DIAS = val;
+        await db.collection("configuracion").doc("general").set({ metaDias: META_DIAS }, { merge: true });
+        actualizarMetaDiasUI();
+    }
 
-        function actualizarPanelDetalles(p) {
-            document.getElementById("nombreAspirante").innerText = p.nombre;
-            document.getElementById("cedulaAspirante").innerText = `CC: ${p.id} | País: ${p.pais || 'Colombia'}`;
+    function actualizarMetaDiasUI() {
+        document.getElementById('btnTabCronograma').innerText = `Cronograma de Días (1-${META_DIAS})`;
+        document.getElementById('tituloCertificacion').innerText = `🏆 Certificación Final (Día ${META_DIAS})`;
+        actualizarProgresoGlobal();
+        renderizarCronograma();
+    }
+
+    function calcularPromedioGeneral(puntuaciones) {
+        if (!puntuaciones) return null;
+        const vals = metricasBase.map(m => puntuaciones[m]).filter(v => v !== null && !isNaN(v)).map(Number);
+        return vals.length ? Number((vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(2)) : null;
+    }
+
+    function determinarEstado(promedio, retirado=false) {
+        if (retirado) return { texto:"Retirado", clase:"estado-noapto" };
+        if (promedio === null) return { texto:"Pendiente", clase:"estado-riesgo" };
+        if (promedio >= 4.5) return { texto:"Sobresaliente", clase:"estado-sobresaliente" };
+        if (promedio >= 3.5) return { texto:"Satisfactorio", clase:"estado-satisfactorio" };
+        if (promedio >= 3.0) return { texto:"En Riesgo", clase:"estado-riesgo" };
+        return { texto:"No Apto", clase:"estado-noapto" };
+    }
+
+    function popularListaAspirantes() {
+        const lista = document.getElementById("listaAspirantes"); lista.innerHTML = '';
+        participantes.forEach(p => {
+            const item = document.createElement("div");
+            item.className = `aspirante-item ${aspiranteActivoId === p.id ? 'activo' : ''}`;
+            item.id = `item-${p.id}`;
             const prom = calcularPromedioGeneral(p.puntuaciones);
-            document.getElementById("notaGeneral").innerText = p.retirado ? '--' : (prom === null ? 'Pendiente' : prom.toFixed(2));
-            const est = determinarEstado(prom, p.retirado);
-            const badge = document.getElementById("estadoAspirante");
-            badge.innerText = est.texto;
-            badge.className = `estado-badge ${est.clase}`;
+            item.innerHTML = `<div class="aspirante-header"><span>${escapeHTML(p.nombre)}</span><span class="aspirante-nota-mini">${prom===null?'--':prom.toFixed(2)}</span></div>
+                              <span class="aspirante-cedula">CC: ${escapeHTML(p.id)} | 🌍 ${escapeHTML(p.pais)||'Colombia'}</span>
+                              ${p.retirado ? '<span class="badge-retirado-list">Retirado</span>' : ''}`;
+            item.onclick = () => seleccionarAspirante(p.id);
+            lista.appendChild(item);
+        });
+    }
 
-            actualizarGraficoRadial(p);
+    function seleccionarAspirante(id) {
+        aspiranteActivoId = id;
+        document.querySelectorAll('.aspirante-item').forEach(el => el.classList.remove('activo'));
+        const el = document.getElementById(`item-${id}`);
+        if (el) el.classList.add('activo');
+        const p = participantes.find(part => String(part.id) === String(id));
+        if (p) actualizarPanelDetalles(p);
+        cerrarModal();
+    }
+
+    function actualizarPanelDetalles(p) {
+        document.getElementById("nombreAspirante").innerText = p.nombre;
+        document.getElementById("cedulaAspirante").innerText = `CC: ${p.id} | País: ${p.pais || 'Colombia'}`;
+        const prom = calcularPromedioGeneral(p.puntuaciones);
+        document.getElementById("notaGeneral").innerText = p.retirado ? '--' : (prom===null ? 'Pendiente' : prom.toFixed(2));
+        const est = determinarEstado(prom, p.retirado);
+        const b = document.getElementById("estadoAspirante");
+        b.innerText = est.texto; b.className = `estado-badge ${est.clase}`;
+
+        let cert = p.puntuaciones?.["Certificación Final"];
+        document.getElementById("kpiCertificacionFinal").innerText = cert ? Number(cert).toFixed(2) : "Pendiente";
+
+        actualizarGraficoRadial(p);
+    }
+
+    function actualizarKPISGlobales() {
+        const activos = participantes.filter(p => !p.retirado);
+        const f = met => {
+            const vals = activos.map(p => p.puntuaciones?.[met]).filter(v => v !== null && !isNaN(v)).map(Number);
+            return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "0.0";
+        };
+        document.getElementById('kpiGlobalAsistencia').innerHTML = `${f('Asistencia')} <span>/ 5.0</span>`;
+        document.getElementById('kpiGlobalPuntualidad').innerHTML = `${f('Puntualidad')} <span>/ 5.0</span>`;
+        const t = Number(f('Talleres')), q = Number(f('Quiz'));
+        document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${((t+q)/2).toFixed(1)} <span>/ 5.0</span>`;
+
+        const ret = participantes.filter(p => p.retirado).length;
+        const rot = participantes.length ? ((ret / participantes.length)*100).toFixed(1) : 0;
+        document.getElementById('kpiGlobalRotacion').innerHTML = `${rot}% <span>(${ret})</span>`;
+    }
+
+    function actualizarParticipantesActivos() {
+        document.getElementById('kpiParticipantesActivos').innerText = participantes.filter(p => !p.retirado).length;
+    }
+
+    function actualizarProgresoGlobal() {
+        const pct = Math.round((diaGlobalCapacitacion / META_DIAS) * 100);
+        document.getElementById("textoProgresoGlobal").innerText = `Día ${diaGlobalCapacitacion} / ${META_DIAS} (${pct}%)`;
+        document.getElementById("barraProgresoGlobal").style.width = `${pct}%`;
+    }
+
+    function actualizarGraficoRadial(p) {
+        const ctx = document.getElementById("radarChart");
+        if (!ctx) return;
+        if (chartInstance) chartInstance.destroy();
+
+        const dataVal = metricasBase.map(m => p.puntuaciones?.[m] || 0);
+        chartInstance = new Chart(ctx.getContext('2d'), {
+            type: 'radar',
+            data: {
+                labels: metricasBase,
+                datasets: [{
+                    label: p.nombre,
+                    data: dataVal,
+                    backgroundColor: p.retirado ? 'rgba(150,150,150,0.3)' : 'rgba(239, 56, 41, 0.2)',
+                    borderColor: p.retirado ? '#999' : '#EF3829',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { r: { min: 0, max: 5, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    function renderizarTop5() {
+        const activos = participantes.filter(p => !p.retirado).map(p => ({ ...p, prom: calcularPromedioGeneral(p.puntuaciones) })).filter(p => p.prom !== null);
+        const mejores = [...activos].sort((a,b)=>b.prom - a.prom).slice(0, 5);
+        const mejora = [...activos].filter(p=>p.prom < 3.9).sort((a,b)=>a.prom - b.prom).slice(0, 5);
+
+        const mCont = document.getElementById("listaTop5Mejores"), oCont = document.getElementById("listaTop5Mejora");
+        mCont.innerHTML = ""; oCont.innerHTML = "";
+
+        mejores.forEach((p,i) => {
+            mCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank rank-${i+1}">${i+1}</div><div class="top5-info"><div class="top5-nombre">${escapeHTML(p.nombre)}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
+        });
+        mejora.forEach((p,i) => {
+            oCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank" style="background:#EF6C00;">${i+1}</div><div class="top5-info"><div class="top5-nombre">${escapeHTML(p.nombre)}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
+        });
+    }
+
+    function renderizarTablaModuloRetiros() {
+        const c = document.getElementById("contenedorTablaRetiros");
+        const rets = participantes.filter(p => p.retirado);
+        if (!rets.length) {
+            c.innerHTML = "<p style='color:#2E7D32;'>🎉 ¡Sin Retiros Registrados!</p>";
+            return;
         }
+        let h = `<table class="tabla-gestion"><thead><tr><th>CC</th><th>Nombre</th><th>Sede</th><th>Día Baja</th><th>Motivo</th></tr></thead><tbody>`;
+        rets.forEach(p => {
+            h += `<tr><td>${p.id}</td><td>${escapeHTML(p.nombre)}</td><td>${escapeHTML(p.pais||'Colombia')}</td><td>Día ${p.diaRetiro||'-'}</td><td><strong style="color:#C62828;">${escapeHTML(p.motivoRetiro||'S/D')}</strong></td></tr>`;
+        });
+        c.innerHTML = h + "</tbody></table>";
+    }
 
-        function actualizarKPISGlobales() {
-            const activos = participantes.filter(p => !p.retirado);
-            const calcMed = (met) => {
-                const val = activos.map(p => p.puntuaciones?.[met]).filter(v => v !== null && !isNaN(v)).map(Number);
-                return val.length ? (val.reduce((a, b) => a + b, 0) / val.length).toFixed(1) : "0.0";
-            };
-
-            document.getElementById('kpiGlobalAsistencia').innerHTML = `${calcMed('Asistencia')} <span>/ 5.0</span>`;
-            document.getElementById('kpiGlobalPuntualidad').innerHTML = `${calcMed('Puntualidad')} <span>/ 5.0</span>`;
-            const tall = Number(calcMed('Talleres'));
-            const qz = Number(calcMed('Quiz'));
-            document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${((tall + qz) / 2).toFixed(1)} <span>/ 5.0</span>`;
-
-            const ret = participantes.filter(p => p.retirado).length;
-            const rot = participantes.length ? ((ret / participantes.length) * 100).toFixed(1) : 0;
-            document.getElementById('kpiGlobalRotacion').innerHTML = `${rot}% <span>(${ret})</span>`;
+    function renderizarCronograma() {
+        const g = document.getElementById("gridCronograma"); g.innerHTML = "";
+        for (let i = 1; i <= META_DIAS; i++) {
+            const info = temarioPQR.find(t => t.dia === i) || { temas: [], actividades: [] };
+            g.innerHTML += `
+                <div class="dia-card">
+                    <div class="dia-header"><h4>Día ${i}</h4></div>
+                    <div class="dia-body">
+                        <div class="dia-seccion"><h5>📚 Temas</h5><ul>${(info.temas||[]).map(t=>`<li>${escapeHTML(t)}</li>`).join('')}</ul></div>
+                        <div class="dia-seccion"><h5>🛠️ Actividades</h5><ul>${(info.actividades||[]).map(a=>`<li>${escapeHTML(a)}</li>`).join('')}</ul></div>
+                    </div>
+                </div>`;
         }
+    }
 
-        function actualizarParticipantesActivos() {
-            document.getElementById('kpiParticipantesActivos').innerText = participantes.filter(p => !p.retirado).length;
+    // 5. CRUD DE ASPIRANTES EN FIRESTORE
+    async function guardarAspiranteForm() {
+        const id = document.getElementById("inputCedula").value.trim();
+        const nom = document.getElementById("inputNombre").value.trim();
+        const pais = document.getElementById("inputPais").value.trim() || 'Colombia';
+        const esRet = document.getElementById("selectRetirado").value === "SI";
+        const mot = esRet ? document.getElementById("selectMotivoRetiro").value : "";
+        const diaR = esRet ? (parseInt(document.getElementById("inputDiaRetiro").value) || diaGlobalCapacitacion) : null;
+
+        if (!id || !nom) return alert("Por favor ingresa Cédula y Nombre.");
+
+        const obj = {
+            id, nombre: nom, pais,
+            retirado: esRet, motivoRetiro: mot, diaRetiro: diaR,
+            puntuaciones: { Asistencia: 5, Puntualidad: 5, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5, "Certificación Final": null }
+        };
+
+        await db.collection("aspirantes").doc(id).set(obj, { merge: true });
+        limpiarFormAspirante();
+        cerrarModalGestion();
+    }
+
+    function limpiarFormAspirante() {
+        idEditando = null;
+        document.getElementById("inputCedula").value = "";
+        document.getElementById("inputCedula").disabled = false;
+        document.getElementById("inputNombre").value = "";
+        document.getElementById("inputPais").value = "";
+        document.getElementById("selectRetirado").value = "NO";
+        document.getElementById("inputDiaRetiro").value = "";
+        toggleCamposRetiroForm();
+    }
+
+    function toggleCamposRetiroForm() {
+        document.getElementById("bloqueCamposRetiro").style.display = document.getElementById("selectRetirado").value === "SI" ? "grid" : "none";
+    }
+
+    async function eliminarAspiranteNube(id) {
+        if (confirm(`¿Eliminar al aspirante con ID ${id} de Firebase?`)) {
+            await db.collection("aspirantes").doc(id).delete();
         }
+    }
 
-        function actualizarProgresoGlobal() {
-            const pct = Math.round((diaGlobalCapacitacion / META_DIAS) * 100);
-            document.getElementById("textoProgresoGlobal").innerText = `Día ${diaGlobalCapacitacion} / ${META_DIAS} (${pct}%)`;
-            document.getElementById("barraProgresoGlobal").style.width = `${pct}%`;
-        }
+    function renderizarTablaAdminAspirantes() {
+        const b = document.getElementById("tbodyAspirantesAdmin"); b.innerHTML = "";
+        participantes.forEach(p => {
+            b.innerHTML += `
+                <tr>
+                    <td>${escapeHTML(p.id)}</td><td>${escapeHTML(p.nombre)}</td>
+                    <td>${p.retirado ? '<span style="color:#C62828;">Retirado</span>' : '<span style="color:#2E7D32;">Activo</span>'}</td>
+                    <td>${escapeHTML(p.motivoRetiro||'-')}</td>
+                    <td><button class="btn-acc-mini btn-acc-del" onclick="eliminarAspiranteNube('${escapeHTML(p.id)}')">🗑️</button></td>
+                </tr>`;
+        });
+    }
 
-        function actualizarGraficoRadial(participante) {
-            const ctx = document.getElementById("radarChart");
-            if (!ctx) return;
-            if (chartInstance) chartInstance.destroy();
+    // 6. EXPORTACIONES E IMPORTACIONES EXCEL CON BATCH A FIRESTORE
+    function descargarFormatoCarga() {
+        const ws = XLSX.utils.aoa_to_sheet([['CEDULA','NOMBRE','PAIS','DIA','ESTADO','MOTIVO','ASISTENCIA','PUNTUALIDAD','TALLERES','QUIZ','ACTITUDINAL','CERTIFICACION FINAL']]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Datos");
+        XLSX.writeFile(wb, "Formato_Carga_Aspirantes.xlsx");
+    }
 
-            const scores = metricasBase.map(m => participante.puntuaciones?.[m] || 0);
-            chartInstance = new Chart(ctx.getContext('2d'), {
-                type: 'radar',
-                data: {
-                    labels: metricasBase,
-                    datasets: [{
-                        label: participante.nombre,
-                        data: scores,
-                        backgroundColor: participante.retirado ? 'rgba(150,150,150,0.3)' : 'rgba(239, 56, 41, 0.2)',
-                        borderColor: participante.retirado ? '#999' : '#EF3829',
-                        borderWidth: 2,
-                        pointBackgroundColor: '#EF3829'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: { r: { min: 0, max: 5, ticks: { stepSize: 1 } } }
+    function descargarFormatoCronograma() {
+        const filas = [['DIA','TOTAL_ESPERADO','PRESENTES','TEMAS','ACTIVIDADES']];
+        for (let i=1; i<=META_DIAS; i++) filas.push([i, 30, 30, "Tema ejemplo", "Actividad ejemplo"]);
+        const ws = XLSX.utils.aoa_to_sheet(filas);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Cronograma");
+        XLSX.writeFile(wb, "Formato_Cronograma.xlsx");
+    }
+
+    function procesarArchivoCSV(event) {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async e => {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            setSyncStatus(true);
+            const batch = db.batch();
+            json.forEach(r => {
+                const id = String(r.CEDULA || r.Cedula || '').trim();
+                const nom = String(r.NOMBRE || r.Nombre || '').trim();
+                if (id && nom) {
+                    const ref = db.collection("aspirantes").doc(id);
+                    batch.set(ref, {
+                        id, nombre: nom, pais: r.PAIS || 'Colombia',
+                        retirado: String(r.ESTADO||'').toUpperCase().includes('RETIR'),
+                        motivoRetiro: r.MOTIVO || '',
+                        diaRetiro: parseInt(r.DIA) || null,
+                        puntuaciones: {
+                            Asistencia: Number(r.ASISTENCIA) || 5,
+                            Puntualidad: Number(r.PUNTUALIDAD) || 5,
+                            Talleres: Number(r.TALLERES) || 4.5,
+                            Quiz: Number(r.QUIZ) || 4.5,
+                            Actitudinal: Number(r.ACTITUDINAL) || 5,
+                            "Certificación Final": Number(r["CERTIFICACION FINAL"]) || null
+                        }
+                    }, { merge: true });
                 }
             });
-        }
-
-        function renderizarTop5() {
-            const activos = participantes.filter(p => !p.retirado).map(p => ({ ...p, prom: calcularPromedioGeneral(p.puntuaciones) })).filter(p => p.prom !== null);
-            const mejores = [...activos].sort((a, b) => b.prom - a.prom).slice(0, 5);
-            const mejora = [...activos].filter(p => p.prom < 3.9).sort((a, b) => a.prom - b.prom).slice(0, 5);
-
-            const mCont = document.getElementById("listaTop5Mejores");
-            const oCont = document.getElementById("listaTop5Mejora");
-            mCont.innerHTML = ""; oCont.innerHTML = "";
-
-            mejores.forEach((p, i) => {
-                mCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank rank-${i+1}">${i+1}</div><div class="top5-info"><div class="top5-nombre">${p.nombre}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
-            });
-
-            mejora.forEach((p, i) => {
-                oCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank" style="background:#EF6C00;">${i+1}</div><div class="top5-info"><div class="top5-nombre">${p.nombre}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
-            });
-        }
-
-        function renderizarTablaModuloRetiros() {
-            const c = document.getElementById("contenedorTablaRetiros");
-            const rets = participantes.filter(p => p.retirado);
-            if (!rets.length) {
-                c.innerHTML = "<p style='color:#2E7D32;'>🎉 No hay retiros registrados.</p>";
-                return;
-            }
-            let h = `<table class="tabla-gestion"><thead><tr><th>CC</th><th>Nombre</th><th>Día</th><th>Motivo</th></tr></thead><tbody>`;
-            rets.forEach(p => {
-                h += `<tr><td>${p.id}</td><td>${p.nombre}</td><td>Día ${p.diaRetiro || '-'}</td><td>${p.motivoRetiro || 'S/D'}</td></tr>`;
-            });
-            c.innerHTML = h + "</tbody></table>";
-        }
-
-        function renderizarCronograma() {
-            const g = document.getElementById("gridCronograma");
-            g.innerHTML = "";
-            for (let i = 1; i <= META_DIAS; i++) {
-                const info = temarioPQR.find(t => t.dia === i) || { temas: [], actividades: [] };
-                g.innerHTML += `
-                    <div class="dia-card">
-                        <div class="dia-header"><h4>Día ${i}</h4></div>
-                        <div class="dia-body">
-                            <div class="dia-seccion"><h5>📚 Temas</h5><ul>${(info.temas || []).map(t => `<li>${t}</li>`).join('')}</ul></div>
-                            <div class="dia-seccion"><h5>🛠️ Actividades</h5><ul>${(info.actividades || []).map(a => `<li>${a}</li>`).join('')}</ul></div>
-                        </div>
-                    </div>`;
-            }
-        }
-
-        // ==========================================
-        // 5. OPERACIONES FIRESTORE
-        // ==========================================
-        async function guardarAspiranteForm() {
-            const id = document.getElementById("inputCedula").value.trim();
-            const nom = document.getElementById("inputNombre").value.trim();
-            const pais = document.getElementById("inputPais").value.trim() || 'Colombia';
-            const esRet = document.getElementById("selectRetirado").value === "SI";
-            const mot = esRet ? document.getElementById("selectMotivoRetiro").value : "";
-            const diaR = esRet ? (parseInt(document.getElementById("inputDiaRetiro").value) || 1) : null;
-
-            if (!id || !nom) return alert("Cédula y Nombre son obligatorios");
-
-            const aspirante = {
-                id,
-                nombre: nom,
-                pais,
-                retirado: esRet,
-                motivoRetiro: mot,
-                diaRetiro: diaR,
-                puntuaciones: { Asistencia: 5, Puntualidad: 5, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5 }
-            };
-
-            await db.collection("aspirantes").doc(id).set(aspirante, { merge: true });
-            cerrarModalGestion();
-        }
-
-        async function eliminarAspiranteNube(id) {
-            if (confirm(`¿Eliminar aspirante ${id} de Firebase?`)) {
-                await db.collection("aspirantes").doc(id).delete();
-            }
-        }
-
-        function renderizarTablaAdminAspirantes() {
-            const b = document.getElementById("tbodyAspirantesAdmin");
-            b.innerHTML = "";
-            participantes.forEach(p => {
-                b.innerHTML += `
-                    <tr>
-                        <td>${p.id}</td><td>${p.nombre}</td>
-                        <td>${p.retirado ? 'Retirado' : 'Activo'}</td>
-                        <td><button class="btn-acc-mini btn-acc-del" onclick="eliminarAspiranteNube('${p.id}')">🗑️</button></td>
-                    </tr>`;
-            });
-        }
-
-        async function guardarEdicionDia() {
-            const dia = parseInt(document.getElementById("editDiaSelect").value);
-            const temas = document.getElementById("editTemas").value.split("\n").filter(Boolean);
-            const actividades = document.getElementById("editActividades").value.split("\n").filter(Boolean);
-
-            let idx = temarioPQR.findIndex(t => t.dia === dia);
-            if (idx >= 0) temarioPQR[idx] = { dia, temas, actividades };
-            else temarioPQR.push({ dia, temas, actividades });
-
-            await db.collection("configuracion").doc("cronograma").set({ dias: temarioPQR });
-            cerrarModalEditor();
-        }
-
-        function cargarDatosDiaEnEditor() {
-            const dia = parseInt(document.getElementById("editDiaSelect").value);
-            const diaInfo = temarioPQR.find(t => t.dia === dia) || { temas: [], actividades: [] };
-            document.getElementById("editTemas").value = (diaInfo.temas || []).join("\n");
-            document.getElementById("editActividades").value = (diaInfo.actividades || []).join("\n");
-        }
-
-        function procesarArchivoExcel(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
-
-                setSyncStatus(true);
-                const batch = db.batch();
-                json.forEach(row => {
-                    const id = String(row.CEDULA || row.Cedula || row.ID || '').trim();
-                    const nombre = String(row.NOMBRE || row.Nombre || '').trim();
-                    if (id && nombre) {
-                        const docRef = db.collection("aspirantes").doc(id);
-                        batch.set(docRef, {
-                            id,
-                            nombre,
-                            pais: row.PAIS || row.Pais || 'Colombia',
-                            retirado: String(row.ESTADO || '').toUpperCase().includes('RETIR'),
-                            motivoRetiro: row.MOTIVO || '',
-                            diaRetiro: parseInt(row.DIA_RETIRO) || null,
-                            puntuaciones: {
-                                Asistencia: Number(row.ASISTENCIA) || 5,
-                                Puntualidad: Number(row.PUNTUALIDAD) || 5,
-                                Talleres: Number(row.TALLERES) || 4.5,
-                                Quiz: Number(row.QUIZ) || 4.5,
-                                Actitudinal: Number(row.ACTITUDINAL) || 5
-                            }
-                        }, { merge: true });
-                    }
-                });
-
-                await batch.commit();
-                setSyncStatus(false);
-                alert(`✅ Se sincronizaron ${json.length} aspirantes en Firebase.`);
-                event.target.value = "";
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        // ==========================================
-        // 6. MODALES Y NAVEGACIÓN
-        // ==========================================
-        function cambiarPestana(id, btn) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            btn.classList.add('active');
-        }
-
-        function abrirModal() {
-            const grid = document.getElementById('gridGeneralAspirantes');
-            grid.innerHTML = '';
-            participantes.forEach(p => {
-                const prom = calcularPromedioGeneral(p.puntuaciones);
-                grid.innerHTML += `
-                    <div class="aspirante-card" onclick="seleccionarAspirante('${p.id}')">
-                        <div class="ac-header">${p.nombre}</div>
-                        <div class="ac-info">CC: ${p.id}</div>
-                        <div class="ac-footer"><span class="ac-nota">${prom === null ? '--' : prom.toFixed(2)}</span></div>
-                    </div>`;
-            });
-            document.getElementById('modalTodos').style.display = 'flex';
-        }
-        function cerrarModal() { document.getElementById('modalTodos').style.display = 'none'; }
-        function abrirModalGestionAspirantes() { document.getElementById("modalGestionAspirantes").style.display = "flex"; }
-        function cerrarModalGestion() { document.getElementById("modalGestionAspirantes").style.display = "none"; }
-        function abrirModalEditorCronograma() {
-            const sel = document.getElementById("editDiaSelect");
-            sel.innerHTML = "";
-            for (let i = 1; i <= META_DIAS; i++) sel.innerHTML += `<option value="${i}">Día ${i}</option>`;
-            cargarDatosDiaEnEditor();
-            document.getElementById("modalEditorCronograma").style.display = "flex";
-        }
-        function cerrarModalEditor() { document.getElementById("modalEditorCronograma").style.display = "none"; }
-        function toggleCamposRetiroForm() {
-            document.getElementById("bloqueCamposRetiro").style.display = document.getElementById("selectRetirado").value === "SI" ? "grid" : "none";
-        }
-
-        window.onload = function() {
-            escucharDatosNube();
+            await batch.commit();
+            setSyncStatus(false);
+            alert(`✅ ${json.length} aspirantes subidos y sincronizados en Firebase.`);
+            event.target.value = "";
         };
-    </script>
+        reader.readAsArrayBuffer(file);
+    }
+
+    function procesarArchivoCronograma(event) {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async e => {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            const temarioNvo = [];
+            json.forEach(r => {
+                const dia = parseInt(r.DIA);
+                if (dia) {
+                    temarioNvo.push({
+                        dia,
+                        temas: String(r.TEMAS||'').split('|').map(s=>s.trim()).filter(Boolean),
+                        actividades: String(r.ACTIVIDADES||'').split('|').map(s=>s.trim()).filter(Boolean)
+                    });
+                }
+            });
+            await db.collection("configuracion").doc("cronograma").set({ temario: temarioNvo, cargado: true, diaGlobal: temarioNvo.length }, { merge: true });
+            alert("✅ Cronograma actualizado en Firebase.");
+            event.target.value = "";
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function guardarEdicionDia() {
+        const dia = parseInt(document.getElementById("editDiaSelect").value);
+        const temas = document.getElementById("editTemas").value.split("\n").filter(Boolean);
+        const actividades = document.getElementById("editActividades").value.split("\n").filter(Boolean);
+        let idx = temarioPQR.findIndex(t => t.dia === dia);
+        if (idx >= 0) temarioPQR[idx] = { dia, temas, actividades };
+        else temarioPQR.push({ dia, temas, actividades });
+
+        await db.collection("configuracion").doc("cronograma").set({ temario: temarioPQR }, { merge: true });
+        cerrarModalEditor();
+    }
+
+    function cargarDatosDiaEnEditor() {
+        const dia = parseInt(document.getElementById("editDiaSelect").value);
+        const d = temarioPQR.find(t => t.dia === dia) || { temas: [], actividades: [] };
+        document.getElementById("editTemas").value = (d.temas || []).join("\n");
+        document.getElementById("editActividades").value = (d.actividades || []).join("\n");
+    }
+
+    async function restablecerDatos() {
+        if (!confirm("⚠️ ¿Estás seguro de BORRAR TODOS los datos de la nube en Firebase?")) return;
+        const snapshot = await db.collection("aspirantes").get();
+        const batch = db.batch();
+        snapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        await db.collection("configuracion").doc("general").delete();
+        await db.collection("configuracion").doc("cronograma").delete();
+        alert("✅ Base de datos reseteada.");
+    }
+
+    // 7. CONTROLADORES UI
+    function cambiarPestana(id, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        btn.classList.add('active');
+    }
+
+    function abrirModal() {
+        const grid = document.getElementById('gridGeneralAspirantes'); grid.innerHTML = '';
+        participantes.forEach(p => {
+            const prom = calcularPromedioGeneral(p.puntuaciones);
+            grid.innerHTML += `
+                <div class="aspirante-card" onclick="seleccionarAspirante('${p.id}')">
+                    <div class="ac-header">${escapeHTML(p.nombre)}</div>
+                    <div class="ac-info">CC: ${p.id}</div>
+                    <div class="ac-footer"><span class="ac-nota">${prom===null?'--':prom.toFixed(2)}</span></div>
+                </div>`;
+        });
+        document.getElementById('modalTodos').style.display = 'flex';
+    }
+    function cerrarModal() { document.getElementById('modalTodos').style.display = 'none'; }
+    function abrirModalGestionAspirantes() { document.getElementById("modalGestionAspirantes").style.display = "flex"; }
+    function cerrarModalGestion() { document.getElementById("modalGestionAspirantes").style.display = "none"; }
+    function abrirModalEditorCronograma() {
+        const sel = document.getElementById("editDiaSelect"); sel.innerHTML = "";
+        for (let i=1; i<=META_DIAS; i++) sel.innerHTML += `<option value="${i}">Día ${i}</option>`;
+        cargarDatosDiaEnEditor();
+        document.getElementById("modalEditorCronograma").style.display = "flex";
+    }
+    function cerrarModalEditor() { document.getElementById("modalEditorCronograma").style.display = "none"; }
+
+    function exportarReporteHTML() {
+        window.print();
+    }
+
+    // Inicialización del Splash de Carga
+    (function(){
+        const splash = document.getElementById('startupSplash');
+        const bar = document.getElementById('startupProgressBar');
+        const value = document.getElementById('startupProgressValue');
+        let p = 0;
+        const intv = setInterval(() => {
+            p += 20;
+            if (bar) bar.style.width = p + '%';
+            if (value) value.textContent = p + '%';
+            if (p >= 100) {
+                clearInterval(intv);
+                setTimeout(() => { if (splash) splash.classList.add('hidden'); }, 300);
+            }
+        }, 100);
+    })();
+
+    window.onload = function() {
+        escucharDatosFirebase();
+    };
+</script>
 </body>
 </html>
