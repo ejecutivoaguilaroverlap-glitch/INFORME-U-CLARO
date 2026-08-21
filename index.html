@@ -591,6 +591,7 @@
                         <option value="RETIRO / DIAS DE CAPACITACION">RETIRO / DIAS DE CAPACITACION</option>
                         <option value="RETIRO / MEJOR OFERTA">RETIRO / MEJOR OFERTA</option>
                         <option value="RETIRO / EXAMENES MEDICOS">RETIRO / EXAMENES MEDICOS</option>
+                        <option value="RETIRO / RENDIMIENTO">RETIRO / RENDIMIENTO</option>
                     </select>
                 </div>
                 <div class="form-group"><label for="inputDiaRetiro">Día de Baja:</label><input type="number" id="inputDiaRetiro" min="1"></div>
@@ -701,13 +702,15 @@
     }
 
     function normalizarMotivoRetiro(motivoRaw) {
-        if (!motivoRaw) return "RETIRO / VOLUNTARIO";
+        if (!motivoRaw) return "";
         const m = String(motivoRaw).trim().toUpperCase();
         if (m.includes("PROCESO") || m.includes("INTERN")) return "RETIRO / PROCESOS INTERNOS";
         if (m.includes("CAPACITACION") || m.includes("DIAS")) return "RETIRO / DIAS DE CAPACITACION";
         if (m.includes("OFERTA") || m.includes("MEJOR")) return "RETIRO / MEJOR OFERTA";
         if (m.includes("MEDIC") || m.includes("EXAMEN")) return "RETIRO / EXAMENES MEDICOS";
-        return "RETIRO / VOLUNTARIO";
+        if (m.includes("RENDIMIENTO") || m.includes("BAJO") || m.includes("CALIFICACION")) return "RETIRO / RENDIMIENTO";
+        if (m.includes("VOLUNTARIO")) return "RETIRO / VOLUNTARIO";
+        return String(motivoRaw).trim();
     }
 
     function obtenerIniciales(nombre) {
@@ -932,7 +935,6 @@
                 : 'Resumen de desempeño, asistencia y evolución de la capacitación.';
         }
 
-        // Encabezado superior sin el nombre del ejecutivo
         const t = document.getElementById('appHeaderTitle');
         if (t) {
             const ubic = [CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' - ');
@@ -1509,7 +1511,7 @@
         mostrarToast("Archivo consolidado generado.", "success");
     }
 
-    // 9. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (3 HOJAS) CON DIA_BAJA Y MOTIVOS
+    // 9. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (3 HOJAS) CON LISTA DESPLEGABLE EN MOTIVOS
     function descargarFormatoUnificado() {
         const wb = XLSX.utils.book_new();
 
@@ -1522,6 +1524,22 @@
             ['100100104', 'ANDREA TORRES', 'Colombia', 3, 'RETIRADO', 'RETIRO / VOLUNTARIO', 3, 3.5, 3.5, 3.0, 3.0, 4.0, '']
         ];
         const wsAspirantes = XLSX.utils.aoa_to_sheet(datosAspirantes);
+
+        // Inserción de lista desplegable de validación de datos en columna MOTIVO (Columna F: F2:F100)
+        const listaMotivosFormula = '"RETIRO / VOLUNTARIO,RETIRO / PROCESOS INTERNOS,RETIRO / DIAS DE CAPACITACION,RETIRO / MEJOR OFERTA,RETIRO / EXAMENES MEDICOS,RETIRO / RENDIMIENTO"';
+        wsAspirantes['!dataValidation'] = [
+            {
+                sqref: "F2:F100",
+                type: "list",
+                operator: "equal",
+                formula1: listaMotivosFormula,
+                allowBlank: true,
+                showDropDown: true,
+                errorTitle: "Motivo no válido",
+                error: "Selecciona un motivo de retiro de la lista desplegable."
+            }
+        ];
+
         XLSX.utils.book_append_sheet(wb, wsAspirantes, "Aspirantes");
 
         // 2. Hoja "Cronograma"
@@ -1538,7 +1556,7 @@
         const wsCronograma = XLSX.utils.aoa_to_sheet(datosCronograma);
         XLSX.utils.book_append_sheet(wb, wsCronograma, "Cronograma");
 
-        // 3. Hoja "Instructivo" con desglose de motivos de retiro válidos
+        // 3. Hoja "Instructivo" con los 6 motivos oficiales
         const datosInstructivo = [
             ['GUÍA DE DILIGENCIAMIENTO - PLANTILLA DE CAPACITACIÓN'],
             [''],
@@ -1548,7 +1566,7 @@
             ['Aspirantes', 'PAIS', 'Texto', 'País o sede del aspirante.', 'Colombia'],
             ['Aspirantes', 'DIA', 'Número', 'Número del día correspondiente al registro de notas (1 al 19).', '1'],
             ['Aspirantes', 'ESTADO', 'Texto', 'Colocar "ACTIVO" o "RETIRADO".', 'ACTIVO'],
-            ['Aspirantes', 'MOTIVO', 'Texto (Opciones válidas)', 'Solo si está RETIRADO: RETIRO / VOLUNTARIO | RETIRO / PROCESOS INTERNOS | RETIRO / DIAS DE CAPACITACION | RETIRO / MEJOR OFERTA | RETIRO / EXAMENES MEDICOS', 'RETIRO / VOLUNTARIO'],
+            ['Aspirantes', 'MOTIVO', 'Lista desplegable (6 opciones)', 'Seleccionar de la lista: RETIRO / VOLUNTARIO | RETIRO / PROCESOS INTERNOS | RETIRO / DIAS DE CAPACITACION | RETIRO / MEJOR OFERTA | RETIRO / EXAMENES MEDICOS | RETIRO / RENDIMIENTO', 'RETIRO / RENDIMIENTO'],
             ['Aspirantes', 'DIA_BAJA', 'Número', 'Día en que se produjo la baja (Ej: 1, 2, 3... 19). Dejar vacío si está ACTIVO.', '3'],
             ['Aspirantes', 'NOTAS (0.0 - 5.0)', 'Decimal (0-5)', 'Calificaciones individuales en escala base 5.0 (ASISTENCIA, PUNTUALIDAD, etc.).', '4.8'],
             ['Aspirantes', 'CERTIFICACION FINAL', 'Decimal (0-5)', 'Nota de certificación del último día (dejar vacío si aún no aplica).', '4.5'],
@@ -1564,7 +1582,7 @@
         XLSX.utils.book_append_sheet(wb, wsInstructivo, "Instructivo");
 
         XLSX.writeFile(wb, "Plantilla_Capacitacion_Unificada.xlsx");
-        mostrarToast("Plantilla unificada descargada.", "info");
+        mostrarToast("Plantilla unificada descargada con lista desplegable.", "info");
     }
 
     function procesarArchivoCSV(event) {
