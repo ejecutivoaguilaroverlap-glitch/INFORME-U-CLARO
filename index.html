@@ -52,7 +52,20 @@
         .btn-danger { background-color: #fff; color: var(--claro-red); border: 1px solid var(--claro-red); margin-top: auto; }
         .btn-danger:hover { background-color: #FFEBEE; }
         
-        .aspirantes-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 320px; }
+        /* Lista de aspirantes ampliada con scroll visible y óptimo */
+        .aspirantes-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            overflow-y: auto; 
+            max-height: 650px; 
+            padding-right: 4px; 
+        }
+        .aspirantes-list::-webkit-scrollbar { width: 6px; }
+        .aspirantes-list::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .aspirantes-list::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        .aspirantes-list::-webkit-scrollbar-thumb:hover { background: var(--claro-red); }
+
         .aspirante-item { padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; background: #FAFAFA; display: flex; flex-direction: column; gap: 5px; position: relative;}
         .aspirante-item:hover, .aspirante-item.activo { border-color: var(--claro-red); background-color: #FFEBEE; }
         .aspirante-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
@@ -174,7 +187,7 @@
             .container { grid-template-columns: 1fr; }
             .sidebar { flex-direction: row; flex-wrap: wrap; justify-content: space-between; }
             .sidebar > * { flex: 1 1 48%; }
-            .aspirantes-list { flex: 1 1 100%; max-height: 200px; }
+            .aspirantes-list { flex: 1 1 100%; max-height: 350px; }
             .equipo-kpis { grid-template-columns: repeat(2, 1fr); }
             .top5-container { grid-template-columns: 1fr; }
         }
@@ -632,7 +645,6 @@
         }
     }
 
-    // Helper para guardar lotes masivos respetando el límite de 500 operaciones en Firestore
     async function guardarEnLotes(coleccion, items) {
         const CHUNK_SIZE = 400;
         for (let i = 0; i < items.length; i += CHUNK_SIZE) {
@@ -1009,7 +1021,6 @@
             chartInstance = null;
         }
 
-        // Renderizado SVG nativo de alta compatibilidad si Chart.js no está disponible offline
         if (typeof Chart === "undefined") {
             const cx = 250, cy = 190, r = 125, n = metricasBase.length;
             const pt = (v, i) => {
