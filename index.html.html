@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento de Capacitación - Universidad Claro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- SDKs de Firebase (Versión CDN lista para navegador) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
+
+    <style>
+        :root {
+            --claro-red: #EF3829;
+            --claro-dark: #212529;
+            --bg-gray: #F4F6F8;
+            --border-color: #E0E0E0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: var(--bg-gray); color: var(--claro-dark); display: flex; flex-direction: column; min-height: 100vh; }
+
+        header { background-color: var(--claro-red); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        header h1 { font-size: 1.4rem; font-weight: 600; }
+        header span { font-size: 0.9rem; background: rgba(255, 255, 255, 0.2); padding: 4px 12px; border-radius: 12px; }
+
+        .container { display: grid; grid-template-columns: 320px 1fr; gap: 20px; padding: 20px; flex: 1; max-width: 1400px; margin: 0 auto; width: 100%; }
+        .sidebar { background: white; border-radius: 8px; padding: 15px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; }
+        
+        .config-dias-card { background: #F8FAF1; border: 1px solid #C8E6C9; padding: 10px; border-radius: 6px; margin-bottom: 5px; }
+        .config-dias-card label { font-size: 0.8rem; font-weight: bold; color: #2E7D32; display: block; margin-bottom: 4px; }
+        .config-dias-card input { width: 100%; padding: 6px; border: 1px solid #A5D6A7; border-radius: 4px; font-weight: bold; color: var(--claro-dark); }
+
+        .btn-primary, .btn-secondary, .btn-warning, .btn-purple, .btn-info, .btn-success, .btn-danger {
+            color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; text-align: center; transition: 0.2s; display: block;
+        }
+        .btn-primary { background-color: var(--claro-dark); }
+        .btn-primary:hover { background-color: #343a40; transform: translateY(-2px); }
+        .btn-secondary { background-color: #607D8B; }
+        .btn-secondary:hover { background-color: #455A64; transform: translateY(-2px); }
+        .btn-warning { background-color: #FF9800; }
+        .btn-warning:hover { background-color: #F57C00; transform: translateY(-2px); }
+        .btn-purple { background-color: #673AB7; }
+        .btn-purple:hover { background-color: #512DA8; transform: translateY(-2px); }
+        .btn-info { background-color: #0288D1; }
+        .btn-info:hover { background-color: #0277BD; transform: translateY(-2px); }
+        .btn-success { background-color: #2E7D32; }
+        .btn-success:hover { background-color: #1b5e20; transform: translateY(-2px); }
+        .btn-danger { background-color: #fff; color: var(--claro-red); border: 1px solid var(--claro-red); margin-top: auto; }
+        .btn-danger:hover { background-color: #FFEBEE; }
+        
+        .aspirantes-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 320px; }
+        .aspirante-item { padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); cursor: pointer; background: #FAFAFA; display: flex; flex-direction: column; gap: 5px; position: relative;}
+        .aspirante-item:hover, .aspirante-item.activo { border-color: var(--claro-red); background-color: #FFEBEE; }
+        .aspirante-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
+        .aspirante-cedula { font-size: 0.75rem; color: #666; }
+        .aspirante-nota-mini { font-size: 0.8rem; color: #666; background: #E0E0E0; padding: 2px 6px; border-radius: 10px; }
+        .aspirante-item.activo .aspirante-nota-mini { background: var(--claro-red); color: white; }
+        .badge-retirado-list { position: absolute; right: 10px; bottom: 8px; font-size: 0.65rem; background: var(--claro-red); color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+        .tabs-container { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; flex-wrap: wrap; }
+        .tab-btn { background: none; border: none; padding: 10px 18px; font-size: 0.95rem; font-weight: bold; color: #666; cursor: pointer; border-radius: 6px; transition: 0.3s; }
+        .tab-btn:hover { background: #E0E0E0; }
+        .tab-btn.active { background: var(--claro-red); color: white; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeInTab 0.4s ease-out forwards; }
+        .tab-content-grid.active { display: grid; }
+        .tab-content-grid { grid-template-rows: auto auto 1fr auto; gap: 20px; }
+
+        @keyframes fadeInTab { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+        .global-progress { background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 15px; }
+        .global-progress-header { display: flex; justify-content: space-between; align-items: center; }
+        .global-progress-stats { font-weight: bold; color: var(--claro-red); font-size: 1.1rem; }
+        .progress-bar-bg { background: #E0E0E0; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; }
+        .progress-bar-fill { background: var(--claro-red); height: 100%; width: 0%; transition: width 0.5s ease-in-out; }
+        
+        .equipo-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; border-top: 1px solid #E0E0E0; padding-top: 15px; }
+        .kpi-box { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FAFAFA; padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); position: relative;}
+        .kpi-label { font-size: 0.75rem; color: #666; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; text-align: center;}
+        .kpi-val { font-size: 1.3rem; font-weight: bold; color: var(--claro-dark); }
+        .kpi-val span { font-size: 0.9rem; color: #888; font-weight: normal; }
+
+        .metrics-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative;}
+        .card h3 { font-size: 0.85rem; color: #666; margin-bottom: 5px; text-transform: uppercase; }
+        .card .value { font-size: 1.6rem; font-weight: bold; color: var(--claro-dark); width: 100%; }
+
+        .estado-badge { display: inline-block; padding: 6px 14px; border-radius: 12px; font-size: 1rem; font-weight: bold; margin-bottom: 5px;}
+        .estado-sobresaliente { background: #E8F5E9; color: #2E7D32; }
+        .estado-satisfactorio { background: #E3F2FD; color: #1565C0; }
+        .estado-riesgo { background: #FFF3E0; color: #EF6C00; }
+        .estado-noapto { background: #FFEBEE; color: #C62828; }
+
+        .chart-container { background: white; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); position: relative; height: 380px; width: 100%; display: flex; justify-content: center; align-items: center; z-index: 10; }
+
+        .top5-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }
+        .top5-card { background: white; border-radius: 10px; border: 1px solid var(--border-color); padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        .top5-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 2px solid var(--bg-gray); }
+        .top5-title.mejores { color: #2E7D32; }
+        .top5-title.mejora { color: #EF6C00; }
+        .top5-list { display: flex; flex-direction: column; gap: 10px; }
+        .top5-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-radius: 8px; background: #FAFAFA; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; }
+        .top5-item:hover { transform: translateX(5px); border-color: var(--claro-red); background: #FFF; }
+        .top5-rank { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; color: white; background: #888; }
+        .top5-rank.rank-1 { background: #FFD700; color: #000; }
+        .top5-rank.rank-2 { background: #C0C0C0; color: #000; }
+        .top5-rank.rank-3 { background: #CD7F32; color: #fff; }
+        .top5-info { flex: 1; margin-left: 12px; }
+        .top5-nombre { font-weight: bold; font-size: 0.95rem; color: var(--claro-dark); }
+        .top5-score { font-size: 1.1rem; font-weight: bold; color: var(--claro-dark); }
+
+        .cronograma-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .dia-card { background: white; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .dia-header { background: var(--claro-dark); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; }
+        .dia-body { padding: 15px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+        .dia-seccion h5 { color: var(--claro-red); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 5px; }
+        .dia-seccion ul { padding-left: 18px; font-size: 0.9rem; color: #444; }
+
+        .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+        .modal-content { background-color: var(--bg-gray); padding: 25px; border-radius: 12px; width: 90%; max-width: 1200px; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .close-modal { position: absolute; right: 25px; top: 20px; font-size: 2rem; font-weight: bold; cursor: pointer; color: #555; }
+        
+        .grid-general { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 15px; margin-top: 25px; }
+        .aspirante-card { background: white; border: 1px solid var(--border-color); border-radius: 10px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); cursor: pointer; display: flex; flex-direction: column; justify-content: space-between; min-height: 120px; }
+        .ac-header { font-weight: bold; font-size: 1.15rem; color: var(--claro-dark); margin-bottom: 5px; }
+        .ac-info { font-size: 0.85rem; color: #666; margin-bottom: 12px; }
+        .ac-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 10px; }
+        .ac-nota { font-weight: bold; font-size: 1.3rem; color: var(--claro-dark); }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
+        .form-group label { font-weight: bold; font-size: 0.9rem; color: var(--claro-dark); }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.95rem; width: 100%; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        .tabla-gestion { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; font-size: 0.9rem; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
+        .tabla-gestion th, .tabla-gestion td { border-bottom: 1px solid var(--border-color); padding: 12px; text-align: left; }
+        .tabla-gestion th { background-color: var(--claro-dark); color: white; font-weight: bold; }
+        .tabla-gestion tr:nth-child(even) { background-color: #FAFAFA; }
+        .btn-acc-mini { border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; margin-right: 5px; }
+        .btn-acc-del { background: #C62828; color: white; }
+
+        .active-participants-card {
+            display:flex; align-items:center; gap:14px;
+            background:linear-gradient(135deg,#fff 0%,#f4f8ff 100%);
+            border:1px solid #dbe5f5; border-radius:14px;
+            padding:16px 20px; margin-bottom:18px;
+            box-shadow:0 4px 12px rgba(0,0,0,.06);
+        }
+        .active-participants-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:25px; background:#eef4ff; }
+        .active-participants-label { font-size:13px; font-weight:700; color:#5f6b7a; text-transform:uppercase; letter-spacing:.4px; }
+        .active-participants-value { font-size:30px; line-height:1.1; font-weight:800; color:#1d4ed8; margin-top:2px; }
+        .active-participants-subtitle { font-size:12px; color:#7a8491; margin-top:3px; }
+        
+        .config-operacion-card{background:#fff;border:1px solid #dbe5f5;border-radius:12px;padding:14px 15px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+        .config-operacion-card h3{margin:0 0 10px;color:#263238;font-size:14px}
+        .config-operacion-grid{display:grid;grid-template-columns:1fr;gap:8px}
+        .config-operacion-grid label{font-size:11px;font-weight:700;color:#667085;text-transform:uppercase;}
+        .config-operacion-grid input{width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #d7dee8;border-radius:7px;font-size:13px}
+        .config-operacion-actions{display:flex;gap:7px;margin-top:10px}
+        .config-operacion-actions button{flex:1}
+        
+        .reporte-corporativo-header{
+            display:grid; grid-template-columns:minmax(150px,220px) 1fr;
+            align-items:center; gap:24px; padding:22px 26px; margin:0 0 18px;
+            border:1px solid #dfe5ee; border-radius:16px;
+            background:linear-gradient(135deg,#ffffff 0%,#f7f9fc 100%);
+            box-shadow:0 8px 22px rgba(31,45,61,.07);
+        }
+        .reporte-corporativo-marca{display:flex;align-items:center;justify-content:center;min-height:76px;padding:8px 14px;background:#fff;border:1px solid #e4e9f0;border-radius:12px;}
+        .reporte-corporativo-sin-logo{font-size:11px;color:#98a2b3;text-align:center;font-weight:700;text-transform:uppercase;}
+        .reporte-corporativo-kicker{margin:0 0 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#667085;}
+        .reporte-corporativo-titulo{margin:0;color:#172b4d;font-size:24px;line-height:1.15;font-weight:800;}
+        .reporte-corporativo-subtitulo{margin:6px 0 0;color:#667085;font-size:13px;line-height:1.45;}
+        
+        .identidad-reporte{background:#fff;border:1px solid #e1e7ef;border-radius:12px;padding:12px 14px;margin-bottom:18px;box-shadow:0 3px 10px rgba(31,45,61,.04);}
+        .identidad-reporte-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;}
+        .identidad-reporte-item{padding:6px 13px;border-right:1px solid #e8edf3;}
+        .identidad-reporte-item:last-child{border-right:0;}
+        .identidad-reporte-item span{display:block;font-size:9px;text-transform:uppercase;color:#8a94a6;font-weight:800;}
+        .identidad-reporte-item strong{display:block;margin-top:3px;color:#26364d;font-size:13px;}
+
+        .cloud-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #2E7D32; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; }
+        .cloud-badge.syncing { color: #0288D1; background: #E1F5FE; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="appHeaderTitle">Campaña - Evaluación de Aspirantes</h1>
+        <span id="headerSubtitle">Panel Oficial en Tiempo Real</span>
+    </header>
+
+    <main class="container">
+        <aside class="sidebar" aria-label="Controles de Administración">
+            <div id="cloudStatus" class="cloud-badge">☁️ Conectado a Firebase</div>
+
+            <div class="config-operacion-card admin-control">
+                <h3>⚙️ Configuración Operación</h3>
+                <div class="config-operacion-grid">
+                    <div><label for="configCampana">Campaña</label><input id="configCampana" type="text" placeholder="Ej: PQR"></div>
+                    <div><label for="configCliente">Cliente</label><input id="configCliente" type="text" placeholder="Ej: Claro"></div>
+                    <div><label for="configSede">Sede</label><input id="configSede" type="text" placeholder="Ej: Atento"></div>
+                    <div><label for="configCiudad">Ciudad</label><input id="configCiudad" type="text" placeholder="Ej: Bogotá"></div>
+                    <div><label for="configPais">País</label><input id="configPais" type="text" placeholder="Ej: Colombia"></div>
+                </div>
+                <div class="config-operacion-actions">
+                    <button type="button" class="btn-primary" onclick="guardarConfiguracionOperacion()">Guardar Nube</button>
+                    <button type="button" class="btn-secondary" onclick="limpiarConfiguracionOperacion()">Limpiar</button>
+                </div>
+            </div>
+
+            <div class="config-dias-card">
+                <label for="inputMetaDias">⚙️ Proyección Total Días:</label>
+                <input type="number" id="inputMetaDias" min="1" max="100" value="19" onchange="actualizarMetaDias(this.value)">
+            </div>
+
+            <button type="button" class="btn-success admin-control" onclick="document.getElementById('fileUpload').click()">
+                📊 Subir Aspirantes (.xlsx / .csv)
+            </button>
+            <input type="file" id="fileUpload" accept=".xlsx,.xls,.csv" onchange="procesarArchivoExcel(event)" style="display:none">
+
+            <button class="btn-primary" onclick="abrirModal()">🗂️ Ver Cuadrícula de Aspirantes</button>
+            <button class="btn-purple admin-control" onclick="abrirModalGestionAspirantes()">👥 Gestionar Asistentes y Retiros</button>
+            <button class="btn-warning admin-control" onclick="abrirModalEditorCronograma()">✏️ Editar Cronograma</button>
+
+            <div class="aspirantes-list" id="listaAspirantes" aria-label="Lista de Aspirantes"></div>
+        </aside>
+
+        <section class="main-panel" id="mainPanel" aria-label="Panel Principal">
+            <div class="active-participants-card" id="activeParticipantsCard">
+                <div class="active-participants-icon">👥</div>
+                <div>
+                    <div class="active-participants-label">Participantes activos</div>
+                    <div class="active-participants-value" id="kpiParticipantesActivos">0</div>
+                    <div class="active-participants-subtitle">Aspirantes sincronizados en Firebase</div>
+                </div>
+            </div>
+
+            <div class="tabs-container" role="tablist">
+                <button class="tab-btn active" role="tab" onclick="cambiarPestana('tab-resumen', this)">Resumen General</button>
+                <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-top5', this)">🏆 Ranking Top 5</button>
+                <button class="tab-btn" role="tab" onclick="cambiarPestana('tab-retiros', this)">🚨 Módulo de Retiros</button>
+                <button class="tab-btn" role="tab" id="btnTabCronograma" onclick="cambiarPestana('tab-cronograma', this)">Cronograma (1-19)</button>
+            </div>
+
+            <article id="tab-resumen" class="tab-content tab-content-grid active">
+                <div class="reporte-corporativo-header">
+                    <div class="reporte-corporativo-marca">
+                        <span class="reporte-corporativo-sin-logo">Universidad Claro</span>
+                    </div>
+                    <div>
+                        <div class="reporte-corporativo-kicker">Informe Ejecutivo</div>
+                        <h2 class="reporte-corporativo-titulo" id="reporteTituloCorporativo">Reporte Ejecutivo</h2>
+                        <p class="reporte-corporativo-subtitulo" id="reporteSubtituloCorporativo">Monitoreo de métricas y rendimiento en tiempo real.</p>
+                    </div>
+                </div>
+
+                <div class="identidad-reporte">
+                    <div class="identidad-reporte-grid">
+                        <div class="identidad-reporte-item"><span>Campaña</span><strong id="reporteCampana">—</strong></div>
+                        <div class="identidad-reporte-item"><span>Cliente</span><strong id="reporteCliente">—</strong></div>
+                        <div class="identidad-reporte-item"><span>Sede</span><strong id="reporteSede">—</strong></div>
+                        <div class="identidad-reporte-item"><span>Ciudad</span><strong id="reporteCiudad">—</strong></div>
+                        <div class="identidad-reporte-item"><span>País</span><strong id="reportePais">—</strong></div>
+                    </div>
+                </div>
+
+                <div class="global-progress">
+                    <div class="global-progress-header">
+                        <h2 id="tituloProgresoCapacitacion">📅 Progreso de capacitación</h2>
+                        <div class="global-progress-stats" id="textoProgresoGlobal">Día 1 / 19 (5%)</div>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="barraProgresoGlobal"></div></div>
+                    
+                    <div class="equipo-kpis">
+                        <div class="kpi-box"><span class="kpi-label">Asistencia</span><div class="kpi-val" id="kpiGlobalAsistencia">0.0 <span>/ 5.0</span></div></div>
+                        <div class="kpi-box"><span class="kpi-label">Puntualidad</span><div class="kpi-val" id="kpiGlobalPuntualidad">0.0 <span>/ 5.0</span></div></div>
+                        <div class="kpi-box" style="background-color: #E8F5E9;"><span class="kpi-label" style="color: #2E7D32;">Talleres & Quiz</span><div class="kpi-val" id="kpiGlobalTalleresQuiz" style="color: #2E7D32;">0.0 <span>/ 5.0</span></div></div>
+                        <div class="kpi-box" style="background-color: #FFEBEE;"><span class="kpi-label" style="color: #C62828;">Rotación</span><div class="kpi-val" id="kpiGlobalRotacion">0%</div></div>
+                    </div>
+                </div>
+
+                <div class="metrics-cards">
+                    <div class="card">
+                        <h3>Aspirante</h3>
+                        <div class="value" id="nombreAspirante" style="font-size: 1.1rem;">--</div>
+                        <div id="cedulaAspirante" style="font-size: 0.8rem; color: #666;">CC: --</div>
+                    </div>
+                    <div class="card">
+                        <h3>Promedio</h3>
+                        <div class="value" id="notaGeneral">0.0</div>
+                    </div>
+                    <div class="card">
+                        <h3>Estado</h3>
+                        <div class="value"><span id="estadoAspirante" class="estado-badge">--</span></div>
+                    </div>
+                </div>
+
+                <div class="chart-container"><canvas id="radarChart"></canvas></div>
+            </article>
+
+            <article id="tab-top5" class="tab-content">
+                <div class="top5-container">
+                    <div class="top5-card">
+                        <div class="top5-title mejores">🥇 Top 5 - Mejores</div>
+                        <div class="top5-list" id="listaTop5Mejores"></div>
+                    </div>
+                    <div class="top5-card">
+                        <div class="top5-title mejora">⚠️ Oportunidad de Mejora</div>
+                        <div class="top5-list" id="listaTop5Mejora"></div>
+                    </div>
+                </div>
+            </article>
+
+            <article id="tab-retiros" class="tab-content">
+                <h2>🚨 Registro de Retiros</h2>
+                <div id="contenedorTablaRetiros" style="margin-top: 15px;"></div>
+            </article>
+
+            <article id="tab-cronograma" class="tab-content">
+                <h2>📅 Temario y Cronograma</h2>
+                <div class="cronograma-grid" id="gridCronograma" style="margin-top: 15px;"></div>
+            </article>
+        </section>
+    </main>
+
+    <!-- Modal Cuadrícula Aspirantes -->
+    <div id="modalTodos" class="modal-overlay">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModal()">&times;</span>
+            <h2>🗂️ Panel General de Aspirantes</h2>
+            <div class="grid-general" id="gridGeneralAspirantes"></div>
+        </div>
+    </div>
+
+    <!-- Modal Gestión Aspirantes -->
+    <div id="modalGestionAspirantes" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-modal" onclick="cerrarModalGestion()">&times;</span>
+            <h2>👥 Administrar Aspirantes</h2>
+            <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <div class="form-row">
+                    <div class="form-group"><label>Cédula:</label><input type="text" id="inputCedula"></div>
+                    <div class="form-group"><label>Nombre:</label><input type="text" id="inputNombre"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>País / Sede:</label><input type="text" id="inputPais"></div>
+                    <div class="form-group">
+                        <label>Estado:</label>
+                        <select id="selectRetirado" onchange="toggleCamposRetiroForm()">
+                            <option value="NO">Activo</option>
+                            <option value="SI">Retirado</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="bloqueCamposRetiro" class="form-row" style="display: none;">
+                    <div class="form-group">
+                        <label>Motivo:</label>
+                        <select id="selectMotivoRetiro">
+                            <option value="RETIRO / VOLUNTARIO">RETIRO / VOLUNTARIO</option>
+                            <option value="RETIRO / PROCESOS INTERNOS">RETIRO / PROCESOS INTERNOS</option>
+                            <option value="RETIRO / DIAS DE CAPACITACION">RETIRO / DIAS DE CAPACITACION</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Día Retiro:</label><input type="number" id="inputDiaRetiro" min="1"></div>
+                </div>
+                <button class="btn-success" onclick="guardarAspiranteForm()">💾 Guardar en Firebase</button>
+            </div>
+            <table class="tabla-gestion">
+                <thead><tr><th>Cédula</th><th>Nombre</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="tbodyAspirantesAdmin"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Editor Cronograma -->
+    <div id="modalEditorCronograma" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close-modal" onclick="cerrarModalEditor()">&times;</span>
+            <h2>✏️ Editar Cronograma</h2>
+            <div class="form-group">
+                <label>Selecciona el Día:</label>
+                <select id="editDiaSelect" onchange="cargarDatosDiaEnEditor()"></select>
+            </div>
+            <div class="form-group"><label>Temas (1 por línea):</label><textarea id="editTemas"></textarea></div>
+            <div class="form-group"><label>Actividades (1 por línea):</label><textarea id="editActividades"></textarea></div>
+            <button class="btn-success" onclick="guardarEdicionDia()">💾 Guardar Día en Nube</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. INICIALIZACIÓN DE FIREBASE Y ANALYTICS
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyDRUZop0XLoaL5utAuh7XKK_qSOkZ1galI",
+            authDomain: "universidad-claro-ejecutivo.firebaseapp.com",
+            projectId: "universidad-claro-ejecutivo",
+            storageBucket: "universidad-claro-ejecutivo.firebasestorage.app",
+            messagingSenderId: "210221887443",
+            appId: "1:210221887443:web:c7a913d1dea9c108d6c926",
+            measurementId: "G-D4QVJQQEYK"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const analytics = firebase.analytics();
+
+        // ==========================================
+        // 2. ESTADO GLOBAL
+        // ==========================================
+        const metricasBase = ["Asistencia", "Puntualidad", "Talleres", "Quiz", "Actitudinal"];
+        let META_DIAS = 19;
+        let diaGlobalCapacitacion = 1;
+        let participantes = [];
+        let temarioPQR = [];
+        let CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
+        let aspiranteActivoId = null;
+        let chartInstance = null;
+
+        function setSyncStatus(syncing) {
+            const el = document.getElementById("cloudStatus");
+            if (el) {
+                el.className = syncing ? "cloud-badge syncing" : "cloud-badge";
+                el.innerHTML = syncing ? "🔄 Sincronizando..." : "☁️ Conectado a Firebase";
+            }
+        }
+
+        // ==========================================
+        // 3. SINCRONIZACIÓN EN TIEMPO REAL
+        // ==========================================
+        function escucharDatosNube() {
+            db.collection("configuracion").doc("general").onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    CONFIG_OPERACION = data.operacion || CONFIG_OPERACION;
+                    META_DIAS = data.metaDias || META_DIAS;
+                    diaGlobalCapacitacion = data.diaGlobal || diaGlobalCapacitacion;
+                    
+                    document.getElementById('inputMetaDias').value = META_DIAS;
+                    actualizarIdentidadOperacion();
+                    actualizarProgresoGlobal();
+                }
+            });
+
+            db.collection("configuracion").doc("cronograma").onSnapshot((doc) => {
+                if (doc.exists) {
+                    temarioPQR = doc.data().dias || [];
+                    renderizarCronograma();
+                }
+            });
+
+            db.collection("aspirantes").onSnapshot((snapshot) => {
+                setSyncStatus(true);
+                const lista = [];
+                snapshot.forEach((doc) => lista.push(doc.data()));
+                participantes = lista;
+
+                popularListaAspirantes();
+                actualizarKPISGlobales();
+                actualizarParticipantesActivos();
+                renderizarTop5();
+                renderizarTablaModuloRetiros();
+                renderizarTablaAdminAspirantes();
+
+                if (participantes.length > 0) {
+                    if (!aspiranteActivoId || !participantes.some(p => p.id === aspiranteActivoId)) {
+                        seleccionarAspirante(participantes[0].id);
+                    } else {
+                        const pAct = participantes.find(p => p.id === aspiranteActivoId);
+                        if (pAct) actualizarPanelDetalles(pAct);
+                    }
+                }
+                setTimeout(() => setSyncStatus(false), 400);
+            });
+        }
+
+        // ==========================================
+        // 4. FUNCIONES DE INTERFAZ Y KPIs
+        // ==========================================
+        function normalizarTexto(v) { return String(v ?? '').trim().replace(/\s+/g, ' '); }
+
+        function actualizarIdentidadOperacion() {
+            document.getElementById('configCampana').value = CONFIG_OPERACION.campana || '';
+            document.getElementById('configCliente').value = CONFIG_OPERACION.cliente || '';
+            document.getElementById('configSede').value = CONFIG_OPERACION.sede || '';
+            document.getElementById('configCiudad').value = CONFIG_OPERACION.ciudad || '';
+            document.getElementById('configPais').value = CONFIG_OPERACION.pais || '';
+
+            document.getElementById('reporteCampana').textContent = CONFIG_OPERACION.campana || '—';
+            document.getElementById('reporteCliente').textContent = CONFIG_OPERACION.cliente || '—';
+            document.getElementById('reporteSede').textContent = CONFIG_OPERACION.sede || '—';
+            document.getElementById('reporteCiudad').textContent = CONFIG_OPERACION.ciudad || '—';
+            document.getElementById('reportePais').textContent = CONFIG_OPERACION.pais || '—';
+
+            document.getElementById('appHeaderTitle').textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes`;
+        }
+
+        async function guardarConfiguracionOperacion() {
+            setSyncStatus(true);
+            CONFIG_OPERACION = {
+                campana: normalizarTexto(document.getElementById('configCampana').value),
+                cliente: normalizarTexto(document.getElementById('configCliente').value),
+                sede: normalizarTexto(document.getElementById('configSede').value),
+                ciudad: normalizarTexto(document.getElementById('configCiudad').value),
+                pais: normalizarTexto(document.getElementById('configPais').value)
+            };
+            await db.collection("configuracion").doc("general").set({
+                operacion: CONFIG_OPERACION,
+                metaDias: META_DIAS,
+                diaGlobal: diaGlobalCapacitacion
+            }, { merge: true });
+            setSyncStatus(false);
+            alert("✅ Configuración guardada en Firebase.");
+        }
+
+        function limpiarConfiguracionOperacion() {
+            CONFIG_OPERACION = { campana: '', cliente: '', sede: '', ciudad: '', pais: '' };
+            guardarConfiguracionOperacion();
+        }
+
+        async function actualizarMetaDias(valor) {
+            META_DIAS = parseInt(valor) || 19;
+            await db.collection("configuracion").doc("general").set({ metaDias: META_DIAS }, { merge: true });
+        }
+
+        function calcularPromedioGeneral(puntuaciones) {
+            if (!puntuaciones) return null;
+            const vals = metricasBase.map(m => puntuaciones[m]).filter(v => v !== null && !isNaN(v)).map(Number);
+            return vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
+        }
+
+        function determinarEstado(promedio, retirado = false) {
+            if (retirado) return { texto: "Retirado", clase: "estado-noapto" };
+            if (promedio === null) return { texto: "Pendiente", clase: "estado-riesgo" };
+            if (promedio >= 4.5) return { texto: "Sobresaliente", clase: "estado-sobresaliente" };
+            if (promedio >= 3.5) return { texto: "Satisfactorio", clase: "estado-satisfactorio" };
+            if (promedio >= 3.0) return { texto: "En Riesgo", clase: "estado-riesgo" };
+            return { texto: "No Apto", clase: "estado-noapto" };
+        }
+
+        function popularListaAspirantes() {
+            const lista = document.getElementById("listaAspirantes");
+            lista.innerHTML = '';
+            participantes.forEach((p) => {
+                const item = document.createElement("div");
+                item.className = `aspirante-item ${aspiranteActivoId === p.id ? 'activo' : ''}`;
+                item.id = `item-${p.id}`;
+                const prom = calcularPromedioGeneral(p.puntuaciones);
+                item.innerHTML = `
+                    <div class="aspirante-header"><span>${p.nombre}</span><span class="aspirante-nota-mini">${prom === null ? '--' : prom.toFixed(2)}</span></div>
+                    <span class="aspirante-cedula">CC: ${p.id} | 🌍 ${p.pais || 'Colombia'}</span>
+                    ${p.retirado ? '<span class="badge-retirado-list">Retirado</span>' : ''}
+                `;
+                item.onclick = () => seleccionarAspirante(p.id);
+                lista.appendChild(item);
+            });
+        }
+
+        function seleccionarAspirante(id) {
+            aspiranteActivoId = id;
+            document.querySelectorAll('.aspirante-item').forEach(el => el.classList.remove('activo'));
+            const sel = document.getElementById(`item-${id}`);
+            if (sel) sel.classList.add('activo');
+
+            const p = participantes.find(part => part.id === id);
+            if (p) actualizarPanelDetalles(p);
+            cerrarModal();
+        }
+
+        function actualizarPanelDetalles(p) {
+            document.getElementById("nombreAspirante").innerText = p.nombre;
+            document.getElementById("cedulaAspirante").innerText = `CC: ${p.id} | País: ${p.pais || 'Colombia'}`;
+            const prom = calcularPromedioGeneral(p.puntuaciones);
+            document.getElementById("notaGeneral").innerText = p.retirado ? '--' : (prom === null ? 'Pendiente' : prom.toFixed(2));
+            const est = determinarEstado(prom, p.retirado);
+            const badge = document.getElementById("estadoAspirante");
+            badge.innerText = est.texto;
+            badge.className = `estado-badge ${est.clase}`;
+
+            actualizarGraficoRadial(p);
+        }
+
+        function actualizarKPISGlobales() {
+            const activos = participantes.filter(p => !p.retirado);
+            const calcMed = (met) => {
+                const val = activos.map(p => p.puntuaciones?.[met]).filter(v => v !== null && !isNaN(v)).map(Number);
+                return val.length ? (val.reduce((a, b) => a + b, 0) / val.length).toFixed(1) : "0.0";
+            };
+
+            document.getElementById('kpiGlobalAsistencia').innerHTML = `${calcMed('Asistencia')} <span>/ 5.0</span>`;
+            document.getElementById('kpiGlobalPuntualidad').innerHTML = `${calcMed('Puntualidad')} <span>/ 5.0</span>`;
+            const tall = Number(calcMed('Talleres'));
+            const qz = Number(calcMed('Quiz'));
+            document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${((tall + qz) / 2).toFixed(1)} <span>/ 5.0</span>`;
+
+            const ret = participantes.filter(p => p.retirado).length;
+            const rot = participantes.length ? ((ret / participantes.length) * 100).toFixed(1) : 0;
+            document.getElementById('kpiGlobalRotacion').innerHTML = `${rot}% <span>(${ret})</span>`;
+        }
+
+        function actualizarParticipantesActivos() {
+            document.getElementById('kpiParticipantesActivos').innerText = participantes.filter(p => !p.retirado).length;
+        }
+
+        function actualizarProgresoGlobal() {
+            const pct = Math.round((diaGlobalCapacitacion / META_DIAS) * 100);
+            document.getElementById("textoProgresoGlobal").innerText = `Día ${diaGlobalCapacitacion} / ${META_DIAS} (${pct}%)`;
+            document.getElementById("barraProgresoGlobal").style.width = `${pct}%`;
+        }
+
+        function actualizarGraficoRadial(participante) {
+            const ctx = document.getElementById("radarChart");
+            if (!ctx) return;
+            if (chartInstance) chartInstance.destroy();
+
+            const scores = metricasBase.map(m => participante.puntuaciones?.[m] || 0);
+            chartInstance = new Chart(ctx.getContext('2d'), {
+                type: 'radar',
+                data: {
+                    labels: metricasBase,
+                    datasets: [{
+                        label: participante.nombre,
+                        data: scores,
+                        backgroundColor: participante.retirado ? 'rgba(150,150,150,0.3)' : 'rgba(239, 56, 41, 0.2)',
+                        borderColor: participante.retirado ? '#999' : '#EF3829',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#EF3829'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { r: { min: 0, max: 5, ticks: { stepSize: 1 } } }
+                }
+            });
+        }
+
+        function renderizarTop5() {
+            const activos = participantes.filter(p => !p.retirado).map(p => ({ ...p, prom: calcularPromedioGeneral(p.puntuaciones) })).filter(p => p.prom !== null);
+            const mejores = [...activos].sort((a, b) => b.prom - a.prom).slice(0, 5);
+            const mejora = [...activos].filter(p => p.prom < 3.9).sort((a, b) => a.prom - b.prom).slice(0, 5);
+
+            const mCont = document.getElementById("listaTop5Mejores");
+            const oCont = document.getElementById("listaTop5Mejora");
+            mCont.innerHTML = ""; oCont.innerHTML = "";
+
+            mejores.forEach((p, i) => {
+                mCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank rank-${i+1}">${i+1}</div><div class="top5-info"><div class="top5-nombre">${p.nombre}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
+            });
+
+            mejora.forEach((p, i) => {
+                oCont.innerHTML += `<div class="top5-item" onclick="seleccionarAspirante('${p.id}')"><div class="top5-rank" style="background:#EF6C00;">${i+1}</div><div class="top5-info"><div class="top5-nombre">${p.nombre}</div></div><div class="top5-score">${p.prom.toFixed(2)}</div></div>`;
+            });
+        }
+
+        function renderizarTablaModuloRetiros() {
+            const c = document.getElementById("contenedorTablaRetiros");
+            const rets = participantes.filter(p => p.retirado);
+            if (!rets.length) {
+                c.innerHTML = "<p style='color:#2E7D32;'>🎉 No hay retiros registrados.</p>";
+                return;
+            }
+            let h = `<table class="tabla-gestion"><thead><tr><th>CC</th><th>Nombre</th><th>Día</th><th>Motivo</th></tr></thead><tbody>`;
+            rets.forEach(p => {
+                h += `<tr><td>${p.id}</td><td>${p.nombre}</td><td>Día ${p.diaRetiro || '-'}</td><td>${p.motivoRetiro || 'S/D'}</td></tr>`;
+            });
+            c.innerHTML = h + "</tbody></table>";
+        }
+
+        function renderizarCronograma() {
+            const g = document.getElementById("gridCronograma");
+            g.innerHTML = "";
+            for (let i = 1; i <= META_DIAS; i++) {
+                const info = temarioPQR.find(t => t.dia === i) || { temas: [], actividades: [] };
+                g.innerHTML += `
+                    <div class="dia-card">
+                        <div class="dia-header"><h4>Día ${i}</h4></div>
+                        <div class="dia-body">
+                            <div class="dia-seccion"><h5>📚 Temas</h5><ul>${(info.temas || []).map(t => `<li>${t}</li>`).join('')}</ul></div>
+                            <div class="dia-seccion"><h5>🛠️ Actividades</h5><ul>${(info.actividades || []).map(a => `<li>${a}</li>`).join('')}</ul></div>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        // ==========================================
+        // 5. OPERACIONES FIRESTORE
+        // ==========================================
+        async function guardarAspiranteForm() {
+            const id = document.getElementById("inputCedula").value.trim();
+            const nom = document.getElementById("inputNombre").value.trim();
+            const pais = document.getElementById("inputPais").value.trim() || 'Colombia';
+            const esRet = document.getElementById("selectRetirado").value === "SI";
+            const mot = esRet ? document.getElementById("selectMotivoRetiro").value : "";
+            const diaR = esRet ? (parseInt(document.getElementById("inputDiaRetiro").value) || 1) : null;
+
+            if (!id || !nom) return alert("Cédula y Nombre son obligatorios");
+
+            const aspirante = {
+                id,
+                nombre: nom,
+                pais,
+                retirado: esRet,
+                motivoRetiro: mot,
+                diaRetiro: diaR,
+                puntuaciones: { Asistencia: 5, Puntualidad: 5, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5 }
+            };
+
+            await db.collection("aspirantes").doc(id).set(aspirante, { merge: true });
+            cerrarModalGestion();
+        }
+
+        async function eliminarAspiranteNube(id) {
+            if (confirm(`¿Eliminar aspirante ${id} de Firebase?`)) {
+                await db.collection("aspirantes").doc(id).delete();
+            }
+        }
+
+        function renderizarTablaAdminAspirantes() {
+            const b = document.getElementById("tbodyAspirantesAdmin");
+            b.innerHTML = "";
+            participantes.forEach(p => {
+                b.innerHTML += `
+                    <tr>
+                        <td>${p.id}</td><td>${p.nombre}</td>
+                        <td>${p.retirado ? 'Retirado' : 'Activo'}</td>
+                        <td><button class="btn-acc-mini btn-acc-del" onclick="eliminarAspiranteNube('${p.id}')">🗑️</button></td>
+                    </tr>`;
+            });
+        }
+
+        async function guardarEdicionDia() {
+            const dia = parseInt(document.getElementById("editDiaSelect").value);
+            const temas = document.getElementById("editTemas").value.split("\n").filter(Boolean);
+            const actividades = document.getElementById("editActividades").value.split("\n").filter(Boolean);
+
+            let idx = temarioPQR.findIndex(t => t.dia === dia);
+            if (idx >= 0) temarioPQR[idx] = { dia, temas, actividades };
+            else temarioPQR.push({ dia, temas, actividades });
+
+            await db.collection("configuracion").doc("cronograma").set({ dias: temarioPQR });
+            cerrarModalEditor();
+        }
+
+        function cargarDatosDiaEnEditor() {
+            const dia = parseInt(document.getElementById("editDiaSelect").value);
+            const diaInfo = temarioPQR.find(t => t.dia === dia) || { temas: [], actividades: [] };
+            document.getElementById("editTemas").value = (diaInfo.temas || []).join("\n");
+            document.getElementById("editActividades").value = (diaInfo.actividades || []).join("\n");
+        }
+
+        function procesarArchivoExcel(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet);
+
+                setSyncStatus(true);
+                const batch = db.batch();
+                json.forEach(row => {
+                    const id = String(row.CEDULA || row.Cedula || row.ID || '').trim();
+                    const nombre = String(row.NOMBRE || row.Nombre || '').trim();
+                    if (id && nombre) {
+                        const docRef = db.collection("aspirantes").doc(id);
+                        batch.set(docRef, {
+                            id,
+                            nombre,
+                            pais: row.PAIS || row.Pais || 'Colombia',
+                            retirado: String(row.ESTADO || '').toUpperCase().includes('RETIR'),
+                            motivoRetiro: row.MOTIVO || '',
+                            diaRetiro: parseInt(row.DIA_RETIRO) || null,
+                            puntuaciones: {
+                                Asistencia: Number(row.ASISTENCIA) || 5,
+                                Puntualidad: Number(row.PUNTUALIDAD) || 5,
+                                Talleres: Number(row.TALLERES) || 4.5,
+                                Quiz: Number(row.QUIZ) || 4.5,
+                                Actitudinal: Number(row.ACTITUDINAL) || 5
+                            }
+                        }, { merge: true });
+                    }
+                });
+
+                await batch.commit();
+                setSyncStatus(false);
+                alert(`✅ Se sincronizaron ${json.length} aspirantes en Firebase.`);
+                event.target.value = "";
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ==========================================
+        // 6. MODALES Y NAVEGACIÓN
+        // ==========================================
+        function cambiarPestana(id, btn) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        function abrirModal() {
+            const grid = document.getElementById('gridGeneralAspirantes');
+            grid.innerHTML = '';
+            participantes.forEach(p => {
+                const prom = calcularPromedioGeneral(p.puntuaciones);
+                grid.innerHTML += `
+                    <div class="aspirante-card" onclick="seleccionarAspirante('${p.id}')">
+                        <div class="ac-header">${p.nombre}</div>
+                        <div class="ac-info">CC: ${p.id}</div>
+                        <div class="ac-footer"><span class="ac-nota">${prom === null ? '--' : prom.toFixed(2)}</span></div>
+                    </div>`;
+            });
+            document.getElementById('modalTodos').style.display = 'flex';
+        }
+        function cerrarModal() { document.getElementById('modalTodos').style.display = 'none'; }
+        function abrirModalGestionAspirantes() { document.getElementById("modalGestionAspirantes").style.display = "flex"; }
+        function cerrarModalGestion() { document.getElementById("modalGestionAspirantes").style.display = "none"; }
+        function abrirModalEditorCronograma() {
+            const sel = document.getElementById("editDiaSelect");
+            sel.innerHTML = "";
+            for (let i = 1; i <= META_DIAS; i++) sel.innerHTML += `<option value="${i}">Día ${i}</option>`;
+            cargarDatosDiaEnEditor();
+            document.getElementById("modalEditorCronograma").style.display = "flex";
+        }
+        function cerrarModalEditor() { document.getElementById("modalEditorCronograma").style.display = "none"; }
+        function toggleCamposRetiroForm() {
+            document.getElementById("bloqueCamposRetiro").style.display = document.getElementById("selectRetirado").value === "SI" ? "grid" : "none";
+        }
+
+        window.onload = function() {
+            escucharDatosNube();
+        };
+    </script>
+</body>
+</html>
