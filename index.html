@@ -602,6 +602,15 @@
 
     function normalizarNombre(v) { return String(v ?? '').trim().replace(/\s+/g, ' '); }
 
+    // Función estricta para notas base 5.0 (impide desbordes como 6.5)
+    function notaSegura(v) {
+        if (v === null || v === undefined || String(v).trim() === "") return null;
+        const n = Number(String(v).replace(",", "."));
+        if (!Number.isFinite(n) || n < 0) return 0;
+        if (n > 5 && n <= 100) return Number(Math.min(5, (n / 20)).toFixed(2));
+        return Number(Math.min(5, n).toFixed(2));
+    }
+
     // 3. SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE
     function escucharDatosFirebase() {
         db.collection("configuracion").doc("general").onSnapshot(doc => {
@@ -830,7 +839,7 @@
         }
     }
 
-    // 5. REGLAS DE NEGOCIO Y CÁLCULO DE KPIS
+    // 5. REGLAS DE NEGOCIO Y CÁLCULO EXACTO DE KPIS
     async function actualizarMetaDias(nuevoValor) {
         let val = parseInt(nuevoValor) || 1;
         META_DIAS = val;
@@ -900,20 +909,33 @@
         actualizarGraficoRadial(p);
     }
 
+    // Cálculo ponderado estricto para las 4 cajas superiores de métricas
     function actualizarKPISGlobales() {
         const activos = participantes.filter(p => !p.retirado);
+        
         const f = met => {
             const vals = activos.map(p => p.puntuaciones?.[met]).filter(v => v !== null && !isNaN(v)).map(Number);
-            return vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "0.0";
+            if (!vals.length) return "0.0";
+            const media = vals.reduce((a, b) => a + b, 0) / vals.length;
+            return Math.min(5.0, media).toFixed(1);
         };
+
         document.getElementById('kpiGlobalAsistencia').innerHTML = `${f('Asistencia')} <span>/ 5.0</span>`;
         document.getElementById('kpiGlobalPuntualidad').innerHTML = `${f('Puntualidad')} <span>/ 5.0</span>`;
-        const t = Number(f('Talleres')), q = Number(f('Quiz'));
-        document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${((t+q)/2).toFixed(1)} <span>/ 5.0</span>`;
+        
+        const tall = Number(f('Talleres'));
+        const qz = Number(f('Quiz'));
+        const talleresQuiz = Math.min(5.0, (tall + qz) / 2).toFixed(1);
+        document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${talleresQuiz} <span>/ 5.0</span>`;
 
+        // Rotación real: (Retirados / Cohorte Inicial Total) * 100
         const ret = participantes.filter(p => p.retirado).length;
-        const rot = participantes.length ? ((ret / participantes.length)*100).toFixed(1) : 0;
+        const totalCohorte = participantes.length;
+        const rot = totalCohorte ? ((ret / totalCohorte) * 100).toFixed(1) : "0.0";
         document.getElementById('kpiGlobalRotacion').innerHTML = `${rot}% <span>(${ret})</span>`;
+        
+        const tip = document.getElementById('tooltipRotacion');
+        if (tip) tip.innerText = totalCohorte ? `${ret} aspirante(s) retirado(s) de ${totalCohorte} total registrado.` : 'Sin registros.';
     }
 
     function actualizarParticipantesActivos() {
@@ -1029,7 +1051,7 @@
         const obj = {
             id, nombre: nom, pais,
             retirado: esRet, motivoRetiro: mot, diaRetiro: diaR,
-            puntuaciones: { Asistencia: 5, Puntualidad: 5, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5, "Certificación Final": null }
+            puntuaciones: { Asistencia: 5.0, Puntualidad: 5.0, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5.0, "Certificación Final": null }
         };
 
         await db.collection("aspirantes").doc(id).set(obj, { merge: true });
@@ -1071,7 +1093,7 @@
         });
     }
 
-    // 7. IMPORTACIÓN / EXPORTACIÓN EXCEL
+    // 7. IMPORTACIÓN Y PROCESAMIENTO EXCEL
     function descargarFormatoCarga() {
         const ws = XLSX.utils.aoa_to_sheet([['CEDULA','NOMBRE','PAIS','DIA','ESTADO','MOTIVO','ASISTENCIA','PUNTUALIDAD','TALLERES','QUIZ','ACTITUDINAL','CERTIFICACION FINAL']]);
         const wb = XLSX.utils.book_new();
@@ -1108,12 +1130,12 @@
                         motivoRetiro: r.MOTIVO || '',
                         diaRetiro: parseInt(r.DIA) || null,
                         puntuaciones: {
-                            Asistencia: Number(r.ASISTENCIA) || 5,
-                            Puntualidad: Number(r.PUNTUALIDAD) || 5,
-                            Talleres: Number(r.TALLERES) || 4.5,
-                            Quiz: Number(r.QUIZ) || 4.5,
-                            Actitudinal: Number(r.ACTITUDINAL) || 5,
-                            "Certificación Final": Number(r["CERTIFICACION FINAL"]) || null
+                            Asistencia: notaSegura(r.ASISTENCIA) ?? 5.0,
+                            Puntualidad: notaSegura(r.PUNTUALIDAD) ?? 5.0,
+                            Talleres: notaSegura(r.TALLERES) ?? 4.5,
+                            Quiz: notaSegura(r.QUIZ) ?? 4.5,
+                            Actitudinal: notaSegura(r.ACTITUDINAL) ?? 5.0,
+                            "Certificación Final": notaSegura(r["CERTIFICACION FINAL"])
                         }
                     }, { merge: true });
                 }
@@ -1126,7 +1148,7 @@
         reader.readAsArrayBuffer(file);
     }
 
-    // CARGA EXACTA DE CRONOGRAMA: Actualiza por número de día, sin duplicar ni acumular
+    // CARGA EXACTA DE CRONOGRAMA: Mapeo no acumulativo por número de día
     function procesarArchivoCronograma(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1135,7 +1157,6 @@
             const wb = XLSX.read(data, { type: 'array' });
             const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 
-            // Clonamos el estado existente para modificar solo los días que vienen en el archivo
             const temarioPropuesto = [...temarioPQR];
             const asistenciasPropuestas = { ...registrosAsistenciaManual };
             const diasModificados = [];
@@ -1149,7 +1170,6 @@
                     const totalE = r.TOTAL_ESPERADO != null ? Number(r.TOTAL_ESPERADO) : null;
                     const presentes = r.PRESENTES != null ? Number(r.PRESENTES) : null;
 
-                    // Actualizar o insertar el día exacto
                     const idx = temarioPropuesto.findIndex(t => Number(t.dia) === dia);
                     if (idx >= 0) {
                         temarioPropuesto[idx] = { dia, temas, actividades };
@@ -1235,7 +1255,7 @@
         alert("✅ Base de datos reseteada.");
     }
 
-    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML AUTÓNOMO
+    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML INTERACTIVO (SIN BOTONES ADMIN)
     function exportarReporteHTML() {
         if (participantes.length === 0) { 
             alert("No hay datos cargados para exportar."); 
@@ -1244,12 +1264,10 @@
 
         let domClonado = document.documentElement.cloneNode(true);
 
-        // Eliminar controles administrativos, modales de edición, splash y conexión
         domClonado.querySelectorAll(
             '.admin-control, .config-dias-card, #fileUpload, label[for="fileUpload"], #fileCronogramaUpload, #startupSplash, #cloudStatus'
         ).forEach(el => el.remove());
 
-        // Asegurar visualización limpia del Resumen General
         domClonado.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active', 'tab-content-grid'));
         let tabResumenClonado = domClonado.querySelector('#tab-resumen');
         if (tabResumenClonado) tabResumenClonado.classList.add('active', 'tab-content-grid');
@@ -1273,7 +1291,6 @@
         let chartCont = domClonado.querySelector('#chartContainer');
         if (chartCont) chartCont.innerHTML = '<canvas id="radarChart"></canvas>';
 
-        // Inyectar datos en el script local sin dependencias de Firebase
         const scriptOriginal = document.getElementById('main-script').innerHTML;
         let scriptExportado = scriptOriginal
             .replace(/let META_DIAS = [^;]+;/, `let META_DIAS = ${META_DIAS};`)
@@ -1287,7 +1304,6 @@
             .replace(/let cronogramaOficialCargado = [^;]+;/, `let cronogramaOficialCargado = ${JSON.stringify(Boolean(cronogramaOficialCargado))};`)
             .replace(/escucharDatosFirebase\(\);/g, 'void 0;');
 
-        // Script de autoinicio del reporte descargado
         scriptExportado += `
 (function() {
     function iniciarReporteEjecutivo() {
@@ -1321,7 +1337,7 @@
 `;
 
         domClonado.querySelectorAll('script').forEach(s => { 
-            if (s.id === 'main-script' || (!s.src && s.id !== 'startup-splash-js')) s.remove(); 
+            if (s.id === 'main-script' || !s.src) s.remove(); 
         });
 
         let nuevoScript = document.createElement('script'); 
@@ -1329,7 +1345,6 @@
         nuevoScript.textContent = scriptExportado; 
         domClonado.querySelector('body').appendChild(nuevoScript);
 
-        // Generar descarga directa del archivo .html
         let htmlFinal = "<!DOCTYPE html>\n<html lang=\"es\">\n" + domClonado.outerHTML + "\n</html>";
         let blob = new Blob([htmlFinal], { type: "text/html;charset=utf-8" });
         let url = URL.createObjectURL(blob);
