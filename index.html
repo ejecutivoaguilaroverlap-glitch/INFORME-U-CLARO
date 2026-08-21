@@ -601,7 +601,6 @@
 
     function normalizarNombre(v) { return String(v ?? '').trim().replace(/\s+/g, ' '); }
 
-    // Función estricta para notas base 5.0 (impide desbordes como 6.5)
     function notaSegura(v) {
         if (v === null || v === undefined || String(v).trim() === "") return null;
         const n = Number(String(v).replace(",", "."));
@@ -610,7 +609,6 @@
         return Number(Math.min(5, n).toFixed(2));
     }
 
-    // Recalcular el promedio histórico por aspirante garantizando límite base 5.0
     function recalcularPromediosHistoricos(participante) {
         if (!Array.isArray(participante.historial) || participante.historial.length === 0) return;
         if (!participante.puntuaciones) participante.puntuaciones = {};
@@ -631,6 +629,20 @@
             .map(Number);
         if (certificados.length) {
             participante.puntuaciones["Certificación Final"] = Math.min(5.0, certificados[certificados.length-1]);
+        }
+    }
+
+    // Helper para guardar lotes masivos respetando el límite de 500 operaciones en Firestore
+    async function guardarEnLotes(coleccion, items) {
+        const CHUNK_SIZE = 400;
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+            const chunk = items.slice(i, i + CHUNK_SIZE);
+            const batch = db.batch();
+            chunk.forEach(item => {
+                const ref = db.collection(coleccion).doc(item.id);
+                batch.set(ref, item, { merge: true });
+            });
+            await batch.commit();
         }
     }
 
@@ -936,13 +948,11 @@
         actualizarGraficoRadial(p);
     }
 
-    // CÁLCULO ESTRICTO DE MÉTRICAS GLOBALES
     function actualizarKPISGlobales() {
         const activos = participantes.filter(p => !p.retirado);
         const retirados = participantes.filter(p => p.retirado);
-        const totalCohorte = participantes.length; // Total histórico (Activos + Retirados)
+        const totalCohorte = participantes.length;
 
-        // Función para promediar métricas ÚNICAMENTE entre aspirantes ACTIVOS
         const f = met => {
             const vals = activos
                 .map(p => p.puntuaciones?.[met])
@@ -961,7 +971,6 @@
         const talleresQuiz = Math.min(5.0, (tall + qz) / 2).toFixed(1);
         document.getElementById('kpiGlobalTalleresQuiz').innerHTML = `${talleresQuiz} <span>/ 5.0</span>`;
 
-        // Rotación real = (Retirados / Total Cohorte Inicial) * 100
         const rotacionPct = totalCohorte > 0 ? ((retirados.length / totalCohorte) * 100).toFixed(1) : "0.0";
         document.getElementById('kpiGlobalRotacion').innerHTML = `${rotacionPct}% <span>(${retirados.length})</span>`;
         
@@ -992,10 +1001,44 @@
     }
 
     function actualizarGraficoRadial(p) {
-        const ctx = document.getElementById("radarChart");
-        if (!ctx) return;
-        if (chartInstance) chartInstance.destroy();
+        const container = document.getElementById("chartContainer");
+        if (!container) return;
 
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+
+        // Renderizado SVG nativo de alta compatibilidad si Chart.js no está disponible offline
+        if (typeof Chart === "undefined") {
+            const cx = 250, cy = 190, r = 125, n = metricasBase.length;
+            const pt = (v, i) => {
+                const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+                const val = Math.max(0, Math.min(5, Number(v ?? 0)));
+                return [cx + (Math.cos(a) * r * val) / 5, cy + (Math.sin(a) * r * val) / 5];
+            };
+            const asp = metricasBase.map((m, i) => pt(p.puntuaciones?.[m], i).join(",")).join(" ");
+            let svg = `<svg viewBox="0 0 500 380" style="width:100%;height:100%;font-family:Segoe UI,sans-serif">`;
+            [1, 2, 3, 4, 5].forEach(l => {
+                const ring = metricasBase.map((_, i) => {
+                    const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+                    return `${cx + (Math.cos(a) * r * l) / 5},${cy + (Math.sin(a) * r * l) / 5}`;
+                }).join(" ");
+                svg += `<polygon points="${ring}" fill="none" stroke="#d0d5db"/>`;
+            });
+            metricasBase.forEach((m, i) => {
+                const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+                const tx = cx + Math.cos(a) * (r + 25);
+                const ty = cy + Math.sin(a) * (r + 25);
+                svg += `<line x1="${cx}" y1="${cy}" x2="${cx + Math.cos(a) * r}" y2="${cy + Math.sin(a) * r}" stroke="#d0d5db"/><text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="700" fill="#212529">${escapeHTML(m)}</text>`;
+            });
+            svg += `<polygon points="${asp}" fill="${p.retirado ? 'rgba(150,150,150,.3)' : 'rgba(239,56,41,.25)'}" stroke="${p.retirado ? '#999' : '#EF3829'}" stroke-width="2"/></svg>`;
+            container.innerHTML = svg;
+            return;
+        }
+
+        container.innerHTML = '<canvas id="radarChart"></canvas>';
+        const ctx = document.getElementById("radarChart");
         const dataVal = metricasBase.map(m => p.puntuaciones?.[m] || 0);
         chartInstance = new Chart(ctx.getContext('2d'), {
             type: 'radar',
@@ -1076,7 +1119,7 @@
         }
     }
 
-    // 6. CRUD ASPIRANTES
+    // 6. CRUD ASPIRANTES CON PRESERVACIÓN DE CALIFICACIONES PREVIAS
     async function guardarAspiranteForm() {
         const id = document.getElementById("inputCedula").value.trim();
         const nom = document.getElementById("inputNombre").value.trim();
@@ -1087,25 +1130,57 @@
 
         if (!id || !nom) return alert("Por favor ingresa Cédula y Nombre.");
 
-        const obj = {
-            id, nombre: nom, pais,
-            retirado: esRet, motivoRetiro: mot, diaRetiro: diaR,
-            puntuaciones: { Asistencia: 5.0, Puntualidad: 5.0, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5.0, "Certificación Final": null }
+        const previo = participantes.find(p => p.id === id);
+        const puntuacionesPreservadas = previo?.puntuaciones || { 
+            Asistencia: 5.0, Puntualidad: 5.0, Talleres: 4.5, Quiz: 4.5, Actitudinal: 5.0, "Certificación Final": null 
         };
 
+        const obj = {
+            id,
+            nombre: nom,
+            pais,
+            retirado: esRet,
+            motivoRetiro: mot,
+            diaRetiro: diaR,
+            puntuaciones: puntuacionesPreservadas,
+            historial: previo?.historial || []
+        };
+
+        setSyncStatus(true);
         await db.collection("aspirantes").doc(id).set(obj, { merge: true });
+        setSyncStatus(false);
         limpiarFormAspirante();
         cerrarModalGestion();
     }
 
+    function editarAspiranteAdmin(id) {
+        const p = participantes.find(item => item.id == id);
+        if (!p) return;
+
+        idEditando = p.id;
+        document.getElementById("tituloFormAspirante").innerText = `✏️ Editar Aspirante: ${p.nombre}`;
+        document.getElementById("inputCedula").value = p.id;
+        document.getElementById("inputCedula").disabled = true;
+        document.getElementById("inputNombre").value = p.nombre;
+        document.getElementById("inputPais").value = p.pais || '';
+        document.getElementById("selectRetirado").value = p.retirado ? "SI" : "NO";
+        document.getElementById("selectMotivoRetiro").value = p.motivoRetiro || "RETIRO / VOLUNTARIO";
+        document.getElementById("inputDiaRetiro").value = p.diaRetiro || "";
+        document.getElementById("btnCancelarEdit").style.display = "inline-block";
+        
+        toggleCamposRetiroForm();
+    }
+
     function limpiarFormAspirante() {
         idEditando = null;
+        document.getElementById("tituloFormAspirante").innerText = "➕ Agregar Nuevo Aspirante";
         document.getElementById("inputCedula").value = "";
         document.getElementById("inputCedula").disabled = false;
         document.getElementById("inputNombre").value = "";
         document.getElementById("inputPais").value = "";
         document.getElementById("selectRetirado").value = "NO";
         document.getElementById("inputDiaRetiro").value = "";
+        document.getElementById("btnCancelarEdit").style.display = "none";
         toggleCamposRetiroForm();
     }
 
@@ -1115,7 +1190,9 @@
 
     async function eliminarAspiranteNube(id) {
         if (confirm(`¿Eliminar al aspirante con ID ${id} de Firebase?`)) {
+            setSyncStatus(true);
             await db.collection("aspirantes").doc(id).delete();
+            setSyncStatus(false);
         }
     }
 
@@ -1125,14 +1202,17 @@
             b.innerHTML += `
                 <tr>
                     <td>${escapeHTML(p.id)}</td><td>${escapeHTML(p.nombre)}</td>
-                    <td>${p.retirado ? '<span style="color:#C62828;">Retirado</span>' : '<span style="color:#2E7D32;">Activo</span>'}</td>
+                    <td>${p.retirado ? '<span style="color:#C62828; font-weight:bold;">Retirado</span>' : '<span style="color:#2E7D32; font-weight:bold;">Activo</span>'}</td>
                     <td>${escapeHTML(p.motivoRetiro||'-')}</td>
-                    <td><button class="btn-acc-mini btn-acc-del" onclick="eliminarAspiranteNube('${escapeHTML(p.id)}')">🗑️</button></td>
+                    <td>
+                        <button class="btn-acc-mini btn-acc-edit" onclick="editarAspiranteAdmin('${escapeHTML(p.id)}')">✏️</button>
+                        <button class="btn-acc-mini btn-acc-del" onclick="eliminarAspiranteNube('${escapeHTML(p.id)}')">🗑️</button>
+                    </td>
                 </tr>`;
         });
     }
 
-    // 7. IMPORTACIÓN Y PROCESAMIENTO EXCEL
+    // 7. IMPORTACIÓN Y PROCESAMIENTO EXCEL POR LOTES (CHUNKING)
     function descargarFormatoCarga() {
         const ws = XLSX.utils.aoa_to_sheet([['CEDULA','NOMBRE','PAIS','DIA','ESTADO','MOTIVO','ASISTENCIA','PUNTUALIDAD','TALLERES','QUIZ','ACTITUDINAL','CERTIFICACION FINAL']]);
         const wb = XLSX.utils.book_new();
@@ -1149,7 +1229,6 @@
         XLSX.writeFile(wb, "Formato_Cronograma.xlsx");
     }
 
-    // Procesar archivo de aspirantes: agrupa registros diarios y calcula el promedio ponderado en base 5
     function procesarArchivoCSV(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1201,23 +1280,23 @@
                 }
             });
 
-            setSyncStatus(true);
-            const batch = db.batch();
-            agrupados.forEach(asp => {
-                recalcularPromediosHistoricos(asp);
-                const ref = db.collection("aspirantes").doc(asp.id);
-                batch.set(ref, asp, { merge: true });
-            });
+            const listaProcesada = Array.from(agrupados.values());
+            listaProcesada.forEach(recalcularPromediosHistoricos);
 
-            await batch.commit();
+            setSyncStatus(true);
+            try {
+                await guardarEnLotes("aspirantes", listaProcesada);
+                alert(`✅ ${listaProcesada.length} aspirantes sincronizados en Firebase.`);
+            } catch (err) {
+                console.error("Error en carga:", err);
+                alert("Error al sincronizar con Firebase: " + err.message);
+            }
             setSyncStatus(false);
-            alert(`✅ ${agrupados.size} aspirantes procesados y sincronizados en Firebase.`);
             event.target.value = "";
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // CARGA EXACTA DE CRONOGRAMA: Mapeo no acumulativo por número de día
     function procesarArchivoCronograma(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1324,7 +1403,7 @@
         alert("✅ Base de datos reseteada.");
     }
 
-    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML INTERACTIVO (SIN BOTONES ADMIN)
+    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML AUTÓNOMO
     function exportarReporteHTML() {
         if (participantes.length === 0) { 
             alert("No hay datos cargados para exportar."); 
@@ -1406,7 +1485,7 @@
 `;
 
         domClonado.querySelectorAll('script').forEach(s => { 
-            if (s.id === 'main-script' || !s.src) s.remove(); 
+            if (s.id === 'main-script' || (!s.src && s.id !== 'startup-splash-js')) s.remove(); 
         });
 
         let nuevoScript = document.createElement('script'); 
