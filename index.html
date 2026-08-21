@@ -52,12 +52,30 @@
         .btn-danger { background-color: #fff; color: var(--claro-red); border: 1px solid var(--claro-red); margin-top: auto; }
         .btn-danger:hover { background-color: #FFEBEE; }
         
+        .search-aspirantes-box {
+            position: relative;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .search-aspirantes-box input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .search-aspirantes-box input:focus {
+            border-color: var(--claro-red);
+        }
+
         .aspirantes-list { 
             display: flex; 
             flex-direction: column; 
             gap: 8px; 
             overflow-y: auto; 
-            max-height: 650px; 
+            max-height: 600px; 
             padding-right: 4px; 
         }
         .aspirantes-list::-webkit-scrollbar { width: 6px; }
@@ -270,6 +288,34 @@
         .cloud-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #2E7D32; background: #E8F5E9; padding: 4px 8px; border-radius: 6px; font-weight: bold; margin-bottom: 5px; }
         .cloud-badge.syncing { color: #0288D1; background: #E1F5FE; }
 
+        /* Toast Container */
+        #toastContainer {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .toast-msg {
+            background-color: var(--claro-dark);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: auto;
+            animation: fadeInTab 0.3s ease-out;
+            border-left: 5px solid var(--claro-red);
+        }
+        .toast-msg.success { border-left-color: #2E7D32; }
+        .toast-msg.error { border-left-color: #C62828; }
+
         .startup-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;background:radial-gradient(circle at 50% 42%, rgba(225,0,30,.12), transparent 30%), radial-gradient(circle at 50% 50%, rgba(20,35,60,.5), transparent 62%), #05070b;transition:opacity .65s ease,visibility .65s ease;}
         .startup-splash.hidden{opacity:0;visibility:hidden;pointer-events:none;}
         .startup-card{position:relative;z-index:2;width:min(520px,calc(100% - 40px));padding:42px 42px 34px;text-align:center;border:1px solid rgba(255,255,255,.13);border-radius:24px;background:rgba(16,18,22,.76);box-shadow:0 30px 80px rgba(0,0,0,.42);backdrop-filter:blur(14px);}
@@ -288,6 +334,8 @@
     </style>
 </head>
 <body>
+
+<div id="toastContainer"></div>
 
 <div id="startupSplash" class="startup-splash" aria-label="Cargando aplicación">
     <div class="startup-card">
@@ -354,6 +402,10 @@
             📥 Descargar Plantilla Excel Unificada (3 Hojas)
         </button>
 
+        <button type="button" class="btn-secondary admin-control" onclick="descargarConsolidadoActual()">
+            📋 Exportar Datos Consolidados (.xlsx)
+        </button>
+
         <button class="btn-primary" onclick="abrirModal()">🗂️ Ver Cuadrícula de Aspirantes</button>
         <button class="btn-purple admin-control" onclick="abrirModalGestionAspirantes()">👥 Gestionar Asistentes y Retiros</button>
         <button class="btn-warning admin-control" onclick="abrirModalEditorCronograma()">✏️ Editar Cronograma y Asistencia</button>
@@ -362,6 +414,10 @@
         
         <hr class="admin-control" style="border: 0; border-top: 1px solid #E0E0E0; margin: 5px 0; width: 100%;">
         
+        <div class="search-aspirantes-box admin-control">
+            <input type="text" id="buscadorAspirante" placeholder="🔍 Buscar por nombre o cédula..." oninput="filtrarListaAspirantes(this.value)">
+        </div>
+
         <div class="aspirantes-list" id="listaAspirantes" aria-label="Lista de Aspirantes"></div>
         <button class="btn-danger admin-control" onclick="restablecerDatos()">Borrar Todo en Firebase</button>
     </aside>
@@ -557,7 +613,7 @@
 </footer>
 
 <script id="main-script">
-    // 1. INICIALIZACIÓN OFICIAL DE FIREBASE
+    // 1. INICIALIZACIÓN OFICIAL DE FIREBASE CON PERSISTENCIA OFFLINE
     const firebaseConfig = {
         apiKey: "AIzaSyDRUZop0XLoaL5utAuh7XKK_qSOkZ1galI",
         authDomain: "universidad-claro-ejecutivo.firebaseapp.com",
@@ -571,6 +627,24 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const analytics = firebase.analytics();
+
+    // Habilitar persistencia offline en segundo plano
+    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+    // Sistema de notificaciones no bloqueantes (Toast)
+    function mostrarToast(mensaje, tipo = "info") {
+        const container = document.getElementById("toastContainer");
+        if (!container) return;
+        const toast = document.createElement("div");
+        toast.className = `toast-msg ${tipo}`;
+        toast.innerHTML = `<span>${mensaje}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transition = "opacity 0.4s ease";
+            setTimeout(() => toast.remove(), 400);
+        }, 3500);
+    }
 
     function setSyncStatus(syncing) {
         const el = document.getElementById("cloudStatus");
@@ -589,10 +663,11 @@
     let registrosAsistenciaManual = {};
     let cronogramaOficialCargado = false;
     let CONFIG_OPERACION = { campana:'', cliente:'', sede:'', ciudad:'', pais:'' };
-    let LOGO_EMPRESA = '';
+    let LOGO_EMPRESA = localStorage.getItem("claro_logo_empresa") || '';
     let aspiranteActivoId = null;
     let chartInstance = null;
     let idEditando = null;
+    let textoBusquedaFiltro = "";
 
     function escapeHTML(str) {
         if (!str) return "";
@@ -654,7 +729,10 @@
                 const d = doc.data();
                 CONFIG_OPERACION = d.operacion || CONFIG_OPERACION;
                 META_DIAS = d.metaDias || META_DIAS;
-                LOGO_EMPRESA = d.logo || '';
+                if (d.logo) {
+                    LOGO_EMPRESA = d.logo;
+                    localStorage.setItem("claro_logo_empresa", LOGO_EMPRESA);
+                }
                 document.getElementById('inputMetaDias').value = META_DIAS;
                 actualizarIdentidadOperacion();
                 actualizarLogoEmpresa();
@@ -703,19 +781,19 @@
         });
     }
 
-    // 4. MANEJO DE LOGO E IDENTIDAD DE OPERACIÓN
+    // 4. MANEJO DE LOGO E IDENTIDAD DE OPERACIÓN CON PERSISTENCIA
     function procesarLogoEmpresa(event) {
         const file = event?.target?.files?.[0];
         if (!file) return;
 
         if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) {
-            alert('Formato no permitido. Usa PNG, JPG, WEBP o SVG.');
+            mostrarToast("Formato no permitido. Usa PNG, JPG, WEBP o SVG.", "error");
             event.target.value = '';
             return;
         }
 
         if (file.size > 800 * 1024) {
-            alert('El logo no puede superar los 800 KB para permitir su almacenamiento en la nube.');
+            mostrarToast("El logo no puede superar los 800 KB.", "error");
             event.target.value = '';
             return;
         }
@@ -723,6 +801,7 @@
         const reader = new FileReader();
         reader.onload = async () => {
             LOGO_EMPRESA = String(reader.result || '');
+            localStorage.setItem("claro_logo_empresa", LOGO_EMPRESA);
             actualizarLogoEmpresa();
             
             setSyncStatus(true);
@@ -731,10 +810,10 @@
                     logo: LOGO_EMPRESA
                 }, { merge: true });
                 setSyncStatus(false);
+                mostrarToast("Logo sincronizado en la nube.", "success");
             } catch (error) {
                 console.error("Error guardando logo en Firebase:", error);
                 setSyncStatus(false);
-                alert("No fue posible sincronizar el logo en la nube.");
             }
         };
         reader.readAsDataURL(file);
@@ -765,6 +844,7 @@
 
     async function quitarLogoEmpresa() {
         LOGO_EMPRESA = '';
+        localStorage.removeItem("claro_logo_empresa");
         const inp = document.getElementById('inputLogoEmpresa');
         if (inp) inp.value = '';
         actualizarLogoEmpresa();
@@ -772,6 +852,7 @@
         setSyncStatus(true);
         try {
             await db.collection("configuracion").doc("general").set({ logo: '' }, { merge: true });
+            mostrarToast("Logo eliminado.", "info");
         } catch (e) {
             console.error("Error quitando logo:", e);
         }
@@ -854,11 +935,11 @@
             }, { merge: true });
 
             setSyncStatus(false);
-            alert("✅ Información de la operación guardada correctamente.");
+            mostrarToast("✅ Información de la operación guardada.", "success");
         } catch (error) {
             console.error("Error guardando en Firebase:", error);
             setSyncStatus(false);
-            alert("No se pudo sincronizar en la nube: " + error.message);
+            mostrarToast("Error de sincronización: " + error.message, "error");
         }
     }
 
@@ -873,6 +954,7 @@
                 operacion: CONFIG_OPERACION
             }, { merge: true });
             setSyncStatus(false);
+            mostrarToast("Campos limpiados.", "info");
         } catch (e) {
             console.error("Error limpiando operación:", e);
             setSyncStatus(false);
@@ -909,9 +991,28 @@
         return { texto:"No Apto", clase:"estado-noapto" };
     }
 
+    function filtrarListaAspirantes(valor) {
+        textoBusquedaFiltro = String(valor || '').toLowerCase().trim();
+        popularListaAspirantes();
+    }
+
     function popularListaAspirantes() {
-        const lista = document.getElementById("listaAspirantes"); lista.innerHTML = '';
-        participantes.forEach(p => {
+        const lista = document.getElementById("listaAspirantes"); 
+        lista.innerHTML = '';
+
+        const filtrados = participantes.filter(p => {
+            if (!textoBusquedaFiltro) return true;
+            const nom = (p.nombre || '').toLowerCase();
+            const id = String(p.id || '').toLowerCase();
+            return nom.includes(textoBusquedaFiltro) || id.includes(textoBusquedaFiltro);
+        });
+
+        if (filtrados.length === 0) {
+            lista.innerHTML = `<div style="text-align:center; padding:15px; color:#888; font-size:0.85rem;">No se encontraron aspirantes.</div>`;
+            return;
+        }
+
+        filtrados.forEach(p => {
             const item = document.createElement("div");
             item.className = `aspirante-item ${aspiranteActivoId === p.id ? 'activo' : ''}`;
             item.id = `item-${p.id}`;
@@ -1119,7 +1220,7 @@
         }
     }
 
-    // 6. CRUD ASPIRANTES CON PRESERVACIÓN DE CALIFICACIONES PREVIAS
+    // 6. CRUD ASPIRANTES CON PREVENCIÓN DE DUPLICADOS Y PRESERVACIÓN
     async function guardarAspiranteForm() {
         const id = document.getElementById("inputCedula").value.trim();
         const nom = document.getElementById("inputNombre").value.trim();
@@ -1128,7 +1229,16 @@
         const mot = esRet ? document.getElementById("selectMotivoRetiro").value : "";
         const diaR = esRet ? (parseInt(document.getElementById("inputDiaRetiro").value) || diaGlobalCapacitacion) : null;
 
-        if (!id || !nom) return alert("Por favor ingresa Cédula y Nombre.");
+        if (!id || !nom) {
+            mostrarToast("Por favor ingresa Cédula y Nombre.", "error");
+            return;
+        }
+
+        // Validación de duplicado al crear un nuevo aspirante
+        if (!idEditando && participantes.some(p => p.id === id)) {
+            mostrarToast("Ya existe un aspirante con esta Cédula.", "error");
+            return;
+        }
 
         const previo = participantes.find(p => p.id === id);
         const puntuacionesPreservadas = previo?.puntuaciones || { 
@@ -1151,6 +1261,7 @@
         setSyncStatus(false);
         limpiarFormAspirante();
         cerrarModalGestion();
+        mostrarToast("Aspirante guardado con éxito.", "success");
     }
 
     function editarAspiranteAdmin(id) {
@@ -1193,6 +1304,7 @@
             setSyncStatus(true);
             await db.collection("aspirantes").doc(id).delete();
             setSyncStatus(false);
+            mostrarToast("Aspirante eliminado.", "info");
         }
     }
 
@@ -1212,7 +1324,64 @@
         });
     }
 
-    // 7. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (3 HOJAS: ASPIRANTES, CRONOGRAMA E INSTRUCTIVO)
+    // 7. EXPORTACIÓN DE DATOS CONSOLIDADOS A EXCEL (.XLSX)
+    function descargarConsolidadoActual() {
+        if (participantes.length === 0) {
+            mostrarToast("No hay datos de aspirantes para exportar.", "error");
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        // Hoja 1: Aspirantes Procesados
+        const filasAspirantes = [
+            ['CEDULA', 'NOMBRE', 'PAIS', 'ESTADO', 'MOTIVO RETIRO', 'DIA RETIRO', 'ASISTENCIA', 'PUNTUALIDAD', 'TALLERES', 'QUIZ', 'ACTITUDINAL', 'PROMEDIO GENERAL', 'CERTIFICACION FINAL']
+        ];
+
+        participantes.forEach(p => {
+            const prom = calcularPromedioGeneral(p.puntuaciones);
+            filasAspirantes.push([
+                p.id,
+                p.nombre,
+                p.pais || 'Colombia',
+                p.retirado ? 'RETIRADO' : 'ACTIVO',
+                p.motivoRetiro || '',
+                p.diaRetiro || '',
+                p.puntuaciones?.Asistencia ?? '',
+                p.puntuaciones?.Puntualidad ?? '',
+                p.puntuaciones?.Talleres ?? '',
+                p.puntuaciones?.Quiz ?? '',
+                p.puntuaciones?.Actitudinal ?? '',
+                prom ?? '',
+                p.puntuaciones?.["Certificación Final"] ?? ''
+            ]);
+        });
+        const wsAspirantes = XLSX.utils.aoa_to_sheet(filasAspirantes);
+        XLSX.utils.book_append_sheet(wb, wsAspirantes, "Aspirantes_Consolidado");
+
+        // Hoja 2: Cronograma
+        const filasCronograma = [['DIA', 'TOTAL_ESPERADO', 'PRESENTES', 'ASISTENCIA_%', 'TEMAS', 'ACTIVIDADES']];
+        for (let i = 1; i <= META_DIAS; i++) {
+            const c = temarioPQR.find(t => Number(t.dia) === i) || {};
+            const asis = registrosAsistenciaManual[i] || {};
+            filasCronograma.push([
+                i,
+                asis.total ?? '',
+                asis.presentes ?? '',
+                asis.porcentaje ?? '',
+                (c.temas || []).join(' | '),
+                (c.actividades || []).join(' | ')
+            ]);
+        }
+        const wsCronograma = XLSX.utils.aoa_to_sheet(filasCronograma);
+        XLSX.utils.book_append_sheet(wb, wsCronograma, "Cronograma");
+
+        const nom = (CONFIG_OPERACION.campana || 'Capacitacion').replace(/[^a-zA-Z0-9]/g, '_');
+        XLSX.writeFile(wb, `Consolidado_${nom}.xlsx`);
+        mostrarToast("Archivo consolidado generado.", "success");
+    }
+
+    // 8. GENERACIÓN DE PLANTILLA EXCEL UNIFICADA (3 HOJAS)
     function descargarFormatoUnificado() {
         const wb = XLSX.utils.book_new();
 
@@ -1241,7 +1410,7 @@
         const wsCronograma = XLSX.utils.aoa_to_sheet(datosCronograma);
         XLSX.utils.book_append_sheet(wb, wsCronograma, "Cronograma");
 
-        // 3. Hoja "Instructivo" (Guía de diligenciamiento)
+        // 3. Hoja "Instructivo"
         const datosInstructivo = [
             ['GUÍA DE DILIGENCIAMIENTO - PLANTILLA DE CAPACITACIÓN'],
             [''],
@@ -1266,6 +1435,7 @@
         XLSX.utils.book_append_sheet(wb, wsInstructivo, "Instructivo");
 
         XLSX.writeFile(wb, "Plantilla_Capacitacion_Unificada.xlsx");
+        mostrarToast("Plantilla unificada descargada.", "info");
     }
 
     function procesarArchivoCSV(event) {
@@ -1386,7 +1556,7 @@
             if (totalAspirantes > 0) msgs.push(`${totalAspirantes} aspirantes sincronizados`);
             if (diasCronoModificados > 0) msgs.push(`${diasCronoModificados} días de cronograma actualizados`);
             
-            alert(`✅ Carga procesada con éxito:\n${msgs.join("\n") || "No se detectaron datos compatibles."}`);
+            mostrarToast(msgs.length ? `✅ Carga exitosa: ${msgs.join(', ')}` : "No se detectaron datos compatibles.", "success");
             event.target.value = "";
         };
         reader.readAsArrayBuffer(file);
@@ -1414,6 +1584,7 @@
         }, { merge: true });
 
         cerrarModalEditor();
+        mostrarToast(`Día ${dia} actualizado en la nube.`, "success");
     }
 
     function cargarDatosDiaEnEditor() {
@@ -1434,20 +1605,21 @@
         await batch.commit();
         await db.collection("configuracion").doc("general").delete();
         await db.collection("configuracion").doc("cronograma").delete();
-        alert("✅ Base de datos reseteada.");
+        localStorage.removeItem("claro_logo_empresa");
+        mostrarToast("Base de datos reseteada correctamente.", "info");
     }
 
-    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML AUTÓNOMO
+    // 9. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML AUTÓNOMO
     function exportarReporteHTML() {
         if (participantes.length === 0) { 
-            alert("No hay datos cargados para exportar."); 
+            mostrarToast("No hay datos cargados para exportar.", "error");
             return; 
         }
 
         let domClonado = document.documentElement.cloneNode(true);
 
         domClonado.querySelectorAll(
-            '.admin-control, .config-dias-card, #fileUpload, label[for="fileUpload"], #fileCronogramaUpload, #startupSplash, #cloudStatus'
+            '.admin-control, .config-dias-card, #fileUpload, label[for="fileUpload"], #fileCronogramaUpload, #startupSplash, #cloudStatus, #toastContainer, .search-aspirantes-box'
         ).forEach(el => el.remove());
 
         domClonado.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active', 'tab-content-grid'));
@@ -1472,6 +1644,14 @@
         
         let chartCont = domClonado.querySelector('#chartContainer');
         if (chartCont) chartCont.innerHTML = '<canvas id="radarChart"></canvas>';
+
+        let imgClonada = domClonado.querySelector('#logoReporteImagen');
+        let sinLogoClonado = domClonado.querySelector('#logoReporteSinLogo');
+        if (imgClonada && LOGO_EMPRESA) {
+            imgClonada.src = LOGO_EMPRESA;
+            imgClonada.style.display = 'block';
+            if (sinLogoClonado) sinLogoClonado.style.display = 'none';
+        }
 
         const scriptOriginal = document.getElementById('main-script').innerHTML;
         let scriptExportado = scriptOriginal
@@ -1541,7 +1721,7 @@
         URL.revokeObjectURL(url);
     }
 
-    // 9. CONTROLADORES UI
+    // 10. CONTROLADORES UI
     function cambiarPestana(id, btn) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1590,6 +1770,9 @@
     })();
 
     window.onload = function() {
+        if (LOGO_EMPRESA) {
+            actualizarLogoEmpresa();
+        }
         escucharDatosFirebase();
     };
 </script>
