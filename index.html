@@ -308,7 +308,6 @@
         .toast-msg.success { border-left-color: #10B981; }
         .toast-msg.error { border-left-color: #EF4444; }
 
-        /* Splash Screen Optimizado */
         .startup-splash{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#fff;background:radial-gradient(circle at 50% 42%, rgba(239,56,41,.18), transparent 35%), radial-gradient(circle at 50% 50%, rgba(20,35,60,.65), transparent 65%), #05070b;transition:opacity .65s ease,visibility .65s ease;}
         .startup-splash.hidden{opacity:0;visibility:hidden;pointer-events:none;}
         .startup-card{position:relative;z-index:2;width:min(520px,calc(100% - 40px));padding:40px 42px 34px;text-align:center;border:1px solid rgba(255,255,255,.14);border-radius:24px;background:rgba(18,22,30,.82);box-shadow:0 30px 80px rgba(0,0,0,.5);backdrop-filter:blur(16px);}
@@ -444,7 +443,7 @@
             <div>
                 <div class="active-participants-label">Participantes activos</div>
                 <div class="active-participants-value" id="kpiParticipantesActivos">0</div>
-                <div class="active-participants-subtitle" id="subtituloCohorte">Aspirantes activos de la cohorte</div>
+                <div class="active-participants-subtitle" id="subtituloCohorte">Aspirantes activos de la capacitación</div>
             </div>
         </div>
 
@@ -464,7 +463,7 @@
                 <div>
                     <div class="reporte-corporativo-kicker">Informe ejecutivo de capacitación</div>
                     <h2 class="reporte-corporativo-titulo" id="reporteTituloCorporativo">Reporte Ejecutivo</h2>
-                    <p class="reporte-corporativo-subtitulo" id="reporteSubtituloCorporativo">Resumen de desempeño, asistencia y evolución de la cohorte.</p>
+                    <p class="reporte-corporativo-subtitulo" id="reporteSubtituloCorporativo">Resumen de desempeño, asistencia y evolución de la capacitación.</p>
                 </div>
             </div>
             
@@ -558,7 +557,7 @@
 <div id="modalTodos" class="modal-overlay">
     <div class="modal-content">
         <span class="close-modal" onclick="cerrarModal()">&times;</span>
-        <h2 style="font-weight: 800; font-size: 1.3rem;">🗂️ Panel General de la Cohorte</h2>
+        <h2 style="font-weight: 800; font-size: 1.3rem;">🗂️ Panel General de la Capacitación</h2>
         <div class="grid-general" id="gridGeneralAspirantes"></div>
     </div>
 </div>
@@ -919,18 +918,18 @@
         if (rs) {
             const partes = [CONFIG_OPERACION.ejecutivo ? `Ejecutivo: ${CONFIG_OPERACION.ejecutivo}` : '', CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad, CONFIG_OPERACION.pais].filter(Boolean);
             rs.textContent = partes.length 
-                ? `Desempeño, asistencia y evolución de la cohorte · ${partes.join(' · ')}` 
-                : 'Resumen de desempeño, asistencia y evolución de la cohorte.';
+                ? `Desempeño, asistencia y evolución de la capacitación · ${partes.join(' · ')}` 
+                : 'Resumen de desempeño, asistencia y evolución de la capacitación.';
         }
 
+        // Encabezado superior sin el nombre del ejecutivo
         const t = document.getElementById('appHeaderTitle');
         if (t) {
             const ubic = [CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' - ');
-            const ej = CONFIG_OPERACION.ejecutivo ? ` | ${CONFIG_OPERACION.ejecutivo}` : '';
-            t.textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes${ubic ? ' | ' + ubic : ''}${ej}`;
+            t.textContent = `${CONFIG_OPERACION.campana || 'Campaña'} - Evaluación de Aspirantes${ubic ? ' | ' + ubic : ''}`;
         }
 
-        const nombreOperacion = [CONFIG_OPERACION.campana, CONFIG_OPERACION.ejecutivo, CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' / ');
+        const nombreOperacion = [CONFIG_OPERACION.campana, CONFIG_OPERACION.cliente, CONFIG_OPERACION.sede, CONFIG_OPERACION.ciudad].filter(Boolean).join(' / ');
         document.title = nombreOperacion 
             ? `Seguimiento de Capacitación - ${nombreOperacion}` 
             : 'Seguimiento de Capacitación';
@@ -1115,7 +1114,7 @@
         const tip = document.getElementById('tooltipRotacion');
         if (tip) {
             tip.innerText = totalCohorte 
-                ? `${retirados.length} retirado(s) de un total de ${totalCohorte} participante(s) en la cohorte.` 
+                ? `${retirados.length} retirado(s) de un total de ${totalCohorte} participante(s) en la capacitación.` 
                 : 'Sin registros.';
         }
     }
@@ -1125,7 +1124,7 @@
         const total = participantes.length;
         document.getElementById('kpiParticipantesActivos').innerText = activos;
         const sub = document.getElementById('subtituloCohorte');
-        if (sub) sub.innerText = `${activos} activos de ${total} en la cohorte`;
+        if (sub) sub.innerText = `${activos} activos de ${total} en la capacitación`;
     }
 
     function actualizarProgresoGlobal() {
@@ -1148,7 +1147,6 @@
             chartInstance = null;
         }
 
-        // Calcular los promedios de la cohorte activa para comparar
         const activos = participantes.filter(part => !part.retirado);
         const promediosGrupo = metricasBase.map(m => {
             const vals = activos
@@ -1173,7 +1171,6 @@
 
             let svg = `<svg viewBox="0 0 500 390" style="width:100%;height:100%;font-family:Plus Jakarta Sans,sans-serif">`;
             
-            // Cuadrícula concéntrica reforzada
             [1, 2, 3, 4, 5].forEach(l => {
                 const ring = metricasBase.map((_, i) => {
                     const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
@@ -1183,7 +1180,6 @@
                 svg += `<text x="${cx + 6}" y="${cy - (r * l) / 5 + 4}" font-size="10" font-weight="700" fill="#64748B">${l}</text>`;
             });
 
-            // Ejes y Etiquetas
             metricasBase.forEach((m, i) => {
                 const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
                 const tx = cx + Math.cos(a) * (r + 26);
@@ -1192,10 +1188,7 @@
                 svg += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="800" fill="#1E2229">${escapeHTML(m)}</text>`;
             });
 
-            // Polígono Promedio Grupo
             svg += `<polygon points="${ptsGrp}" fill="rgba(59, 130, 246, 0.15)" stroke="#3B82F6" stroke-width="2" stroke-dasharray="4,4"/>`;
-            
-            // Polígono Aspirante
             svg += `<polygon points="${ptsAsp}" fill="${p.retirado ? 'rgba(150,150,150,.3)' : 'rgba(239,56,41,.3)'}" stroke="${p.retirado ? '#999' : '#EF3829'}" stroke-width="3"/>`;
             svg += `</svg>`;
             container.innerHTML = svg;
@@ -1225,7 +1218,7 @@
                         order: 1
                     },
                     {
-                        label: 'Promedio Grupo (Cohorte)',
+                        label: 'Promedio Grupo (Capacitación)',
                         data: promediosGrupo,
                         backgroundColor: 'rgba(59, 130, 246, 0.12)',
                         borderColor: '#2563EB',
@@ -1309,7 +1302,7 @@
         const c = document.getElementById("contenedorTablaRetiros");
         const rets = participantes.filter(p => p.retirado);
         if (!rets.length) {
-            c.innerHTML = "<div style='padding:20px; text-align:center; background:#ECFDF5; border-radius:10px; border:1px solid #A7F3D0; color:#047857; font-weight:700;'>🎉 ¡Sin Retiros Registrados en la Cohorte!</div>";
+            c.innerHTML = "<div style='padding:20px; text-align:center; background:#ECFDF5; border-radius:10px; border:1px solid #A7F3D0; color:#047857; font-weight:700;'>🎉 ¡Sin Retiros Registrados en la Capacitación!</div>";
             return;
         }
         let h = `<table class="tabla-gestion"><thead><tr><th>CC</th><th>Nombre</th><th>Sede</th><th>Día Baja</th><th>Motivo</th></tr></thead><tbody>`;
