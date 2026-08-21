@@ -7,7 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-    <!-- SDKs de Firebase (Compatibilidad CDN con Firestore y Analytics) -->
+    <!-- SDKs de Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
@@ -604,7 +604,6 @@
 
     // 3. SINCRONIZACIÓN EN TIEMPO REAL CON FIREBASE
     function escucharDatosFirebase() {
-        // Escuchar Configuración General
         db.collection("configuracion").doc("general").onSnapshot(doc => {
             if (doc.exists) {
                 const d = doc.data();
@@ -618,7 +617,6 @@
             }
         });
 
-        // Escuchar Cronograma y Asistencias
         db.collection("configuracion").doc("cronograma").onSnapshot(doc => {
             if (doc.exists) {
                 const d = doc.data();
@@ -631,7 +629,6 @@
             }
         });
 
-        // Escuchar Aspirantes en Tiempo Real
         db.collection("aspirantes").onSnapshot(snapshot => {
             setSyncStatus(true);
             const lista = [];
@@ -989,13 +986,27 @@
         c.innerHTML = h + "</tbody></table>";
     }
 
+    function calcularAsistenciaDiaria(dia) {
+        const reg = registrosAsistenciaManual[dia];
+        if (reg) {
+            if (reg.porcentaje != null && !isNaN(reg.porcentaje)) return Math.round(reg.porcentaje);
+            if (reg.total > 0 && reg.presentes >= 0) return Math.round((reg.presentes / reg.total) * 100);
+        }
+        return null;
+    }
+
     function renderizarCronograma() {
         const g = document.getElementById("gridCronograma"); g.innerHTML = "";
         for (let i = 1; i <= META_DIAS; i++) {
-            const info = temarioPQR.find(t => t.dia === i) || { temas: [], actividades: [] };
+            const info = temarioPQR.find(t => Number(t.dia) === i) || { temas: [], actividades: [] };
+            const asis = calcularAsistenciaDiaria(i);
+            const badgeAsis = asis !== null 
+                ? `<span class="asistencia-badge" style="background: white; color: ${asis >= 80 ? '#4CAF50' : (asis >= 50 ? '#FF9800' : '#F44336')};">Asistencia: ${asis}%</span>`
+                : `<span class="asistencia-badge" style="background: rgba(255,255,255,0.1); color: #ccc;">S/D</span>`;
+            
             g.innerHTML += `
                 <div class="dia-card">
-                    <div class="dia-header"><h4>Día ${i}</h4></div>
+                    <div class="dia-header"><h4>Día ${i}</h4>${badgeAsis}</div>
                     <div class="dia-body">
                         <div class="dia-seccion"><h5>📚 Temas</h5><ul>${(info.temas||[]).map(t=>`<li>${escapeHTML(t)}</li>`).join('')}</ul></div>
                         <div class="dia-seccion"><h5>🛠️ Actividades</h5><ul>${(info.actividades||[]).map(a=>`<li>${escapeHTML(a)}</li>`).join('')}</ul></div>
@@ -1115,6 +1126,7 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // CARGA EXACTA DE CRONOGRAMA: Actualiza por número de día, sin duplicar ni acumular
     function procesarArchivoCronograma(event) {
         const file = event.target.files[0]; if (!file) return;
         const reader = new FileReader();
@@ -1122,19 +1134,57 @@
             const data = new Uint8Array(e.target.result);
             const wb = XLSX.read(data, { type: 'array' });
             const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            const temarioNvo = [];
+
+            // Clonamos el estado existente para modificar solo los días que vienen en el archivo
+            const temarioPropuesto = [...temarioPQR];
+            const asistenciasPropuestas = { ...registrosAsistenciaManual };
+            const diasModificados = [];
+
             json.forEach(r => {
                 const dia = parseInt(r.DIA);
-                if (dia) {
-                    temarioNvo.push({
-                        dia,
-                        temas: String(r.TEMAS||'').split('|').map(s=>s.trim()).filter(Boolean),
-                        actividades: String(r.ACTIVIDADES||'').split('|').map(s=>s.trim()).filter(Boolean)
-                    });
+                if (Number.isInteger(dia) && dia >= 1 && dia <= META_DIAS) {
+                    const temas = String(r.TEMAS || '').split(/\r?\n|\|/).map(s => s.trim()).filter(Boolean);
+                    const actividades = String(r.ACTIVIDADES || '').split(/\r?\n|\|/).map(s => s.trim()).filter(Boolean);
+                    
+                    const totalE = r.TOTAL_ESPERADO != null ? Number(r.TOTAL_ESPERADO) : null;
+                    const presentes = r.PRESENTES != null ? Number(r.PRESENTES) : null;
+
+                    // Actualizar o insertar el día exacto
+                    const idx = temarioPropuesto.findIndex(t => Number(t.dia) === dia);
+                    if (idx >= 0) {
+                        temarioPropuesto[idx] = { dia, temas, actividades };
+                    } else {
+                        temarioPropuesto.push({ dia, temas, actividades });
+                    }
+
+                    if (totalE !== null && presentes !== null && !isNaN(totalE) && !isNaN(presentes)) {
+                        const porcentaje = totalE > 0 ? Number(((presentes / totalE) * 100).toFixed(1)) : 0;
+                        asistenciasPropuestas[dia] = { total: totalE, presentes, porcentaje };
+                    }
+
+                    diasModificados.push(dia);
                 }
             });
-            await db.collection("configuracion").doc("cronograma").set({ temario: temarioNvo, cargado: true, diaGlobal: temarioNvo.length }, { merge: true });
-            alert("✅ Cronograma actualizado en Firebase.");
+
+            if (diasModificados.length === 0) {
+                alert("No se encontraron registros válidos con columna DIA en el archivo.");
+                event.target.value = "";
+                return;
+            }
+
+            temarioPropuesto.sort((a, b) => a.dia - b.dia);
+            const nuevoDiaGlobal = Math.min(Math.max(...diasModificados), META_DIAS);
+
+            setSyncStatus(true);
+            await db.collection("configuracion").doc("cronograma").set({
+                temario: temarioPropuesto,
+                asistencias: asistenciasPropuestas,
+                diaGlobal: nuevoDiaGlobal,
+                cargado: true
+            }, { merge: true });
+
+            setSyncStatus(false);
+            alert(`✅ Cronograma actualizado. Días modificados: ${diasModificados.sort((a,b)=>a-b).join(", ")}. Día global: ${nuevoDiaGlobal}.`);
             event.target.value = "";
         };
         reader.readAsArrayBuffer(file);
@@ -1144,19 +1194,34 @@
         const dia = parseInt(document.getElementById("editDiaSelect").value);
         const temas = document.getElementById("editTemas").value.split("\n").filter(Boolean);
         const actividades = document.getElementById("editActividades").value.split("\n").filter(Boolean);
-        let idx = temarioPQR.findIndex(t => t.dia === dia);
-        if (idx >= 0) temarioPQR[idx] = { dia, temas, actividades };
-        else temarioPQR.push({ dia, temas, actividades });
+        const total = Number(document.getElementById("editTotalEsperado").value) || 0;
+        const presentes = Number(document.getElementById("editPresentes").value) || 0;
 
-        await db.collection("configuracion").doc("cronograma").set({ temario: temarioPQR }, { merge: true });
+        let temarioActual = [...temarioPQR];
+        let idx = temarioActual.findIndex(t => Number(t.dia) === dia);
+        if (idx >= 0) temarioActual[idx] = { dia, temas, actividades };
+        else temarioActual.push({ dia, temas, actividades });
+
+        let asisActual = { ...registrosAsistenciaManual };
+        const porcentaje = total > 0 ? Number(((presentes / total) * 100).toFixed(1)) : 0;
+        asisActual[dia] = { total, presentes, porcentaje };
+
+        await db.collection("configuracion").doc("cronograma").set({
+            temario: temarioActual,
+            asistencias: asisActual
+        }, { merge: true });
+
         cerrarModalEditor();
     }
 
     function cargarDatosDiaEnEditor() {
         const dia = parseInt(document.getElementById("editDiaSelect").value);
-        const d = temarioPQR.find(t => t.dia === dia) || { temas: [], actividades: [] };
+        const d = temarioPQR.find(t => Number(t.dia) === dia) || { temas: [], actividades: [] };
+        const asis = registrosAsistenciaManual[dia] || {};
         document.getElementById("editTemas").value = (d.temas || []).join("\n");
         document.getElementById("editActividades").value = (d.actividades || []).join("\n");
+        document.getElementById("editTotalEsperado").value = asis.total ?? "";
+        document.getElementById("editPresentes").value = asis.presentes ?? "";
     }
 
     async function restablecerDatos() {
@@ -1170,7 +1235,7 @@
         alert("✅ Base de datos reseteada.");
     }
 
-    // 8. GENERACIÓN DEL REPORTE EJECUTIVO SIN BOTONES ADMINISTRATIVOS
+    // 8. GENERACIÓN EXACTA DEL REPORTE EJECUTIVO EN HTML AUTÓNOMO
     function exportarReporteHTML() {
         if (participantes.length === 0) { 
             alert("No hay datos cargados para exportar."); 
@@ -1179,10 +1244,12 @@
 
         let domClonado = document.documentElement.cloneNode(true);
 
+        // Eliminar controles administrativos, modales de edición, splash y conexión
         domClonado.querySelectorAll(
             '.admin-control, .config-dias-card, #fileUpload, label[for="fileUpload"], #fileCronogramaUpload, #startupSplash, #cloudStatus'
         ).forEach(el => el.remove());
 
+        // Asegurar visualización limpia del Resumen General
         domClonado.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active', 'tab-content-grid'));
         let tabResumenClonado = domClonado.querySelector('#tab-resumen');
         if (tabResumenClonado) tabResumenClonado.classList.add('active', 'tab-content-grid');
@@ -1206,6 +1273,7 @@
         let chartCont = domClonado.querySelector('#chartContainer');
         if (chartCont) chartCont.innerHTML = '<canvas id="radarChart"></canvas>';
 
+        // Inyectar datos en el script local sin dependencias de Firebase
         const scriptOriginal = document.getElementById('main-script').innerHTML;
         let scriptExportado = scriptOriginal
             .replace(/let META_DIAS = [^;]+;/, `let META_DIAS = ${META_DIAS};`)
@@ -1219,6 +1287,7 @@
             .replace(/let cronogramaOficialCargado = [^;]+;/, `let cronogramaOficialCargado = ${JSON.stringify(Boolean(cronogramaOficialCargado))};`)
             .replace(/escucharDatosFirebase\(\);/g, 'void 0;');
 
+        // Script de autoinicio del reporte descargado
         scriptExportado += `
 (function() {
     function iniciarReporteEjecutivo() {
@@ -1252,7 +1321,7 @@
 `;
 
         domClonado.querySelectorAll('script').forEach(s => { 
-            if (s.id === 'main-script' || !s.src) s.remove(); 
+            if (s.id === 'main-script' || (!s.src && s.id !== 'startup-splash-js')) s.remove(); 
         });
 
         let nuevoScript = document.createElement('script'); 
@@ -1260,6 +1329,7 @@
         nuevoScript.textContent = scriptExportado; 
         domClonado.querySelector('body').appendChild(nuevoScript);
 
+        // Generar descarga directa del archivo .html
         let htmlFinal = "<!DOCTYPE html>\n<html lang=\"es\">\n" + domClonado.outerHTML + "\n</html>";
         let blob = new Blob([htmlFinal], { type: "text/html;charset=utf-8" });
         let url = URL.createObjectURL(blob);
