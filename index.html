@@ -1170,7 +1170,111 @@
         alert("✅ Base de datos reseteada.");
     }
 
-    // 8. CONTROLADORES UI Y SPLASH
+    // 8. GENERACIÓN DEL REPORTE EJECUTIVO SIN BOTONES ADMINISTRATIVOS
+    function exportarReporteHTML() {
+        if (participantes.length === 0) { 
+            alert("No hay datos cargados para exportar."); 
+            return; 
+        }
+
+        let domClonado = document.documentElement.cloneNode(true);
+
+        domClonado.querySelectorAll(
+            '.admin-control, .config-dias-card, #fileUpload, label[for="fileUpload"], #fileCronogramaUpload, #startupSplash, #cloudStatus'
+        ).forEach(el => el.remove());
+
+        domClonado.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active', 'tab-content-grid'));
+        let tabResumenClonado = domClonado.querySelector('#tab-resumen');
+        if (tabResumenClonado) tabResumenClonado.classList.add('active', 'tab-content-grid');
+        
+        domClonado.querySelectorAll('.tab-btn').forEach(b => { 
+            b.classList.remove('active'); 
+            b.setAttribute('aria-selected', 'false'); 
+        });
+        let btnResumenClonado = domClonado.querySelector('.tab-btn[onclick*="tab-resumen"]');
+        if (btnResumenClonado) { 
+            btnResumenClonado.classList.add('active'); 
+            btnResumenClonado.setAttribute('aria-selected', 'true'); 
+        }
+
+        let identidad = domClonado.querySelector('#identidadOperacionReporte');
+        if (identidad) identidad.style.display = 'block';
+
+        let subtitulo = domClonado.querySelector('#headerSubtitle');
+        if (subtitulo) subtitulo.innerText = `Reporte Ejecutivo Interactivo - Modo Lectura`;
+        
+        let chartCont = domClonado.querySelector('#chartContainer');
+        if (chartCont) chartCont.innerHTML = '<canvas id="radarChart"></canvas>';
+
+        const scriptOriginal = document.getElementById('main-script').innerHTML;
+        let scriptExportado = scriptOriginal
+            .replace(/let META_DIAS = [^;]+;/, `let META_DIAS = ${META_DIAS};`)
+            .replace(/let CONFIG_OPERACION = [^;]+;/, `let CONFIG_OPERACION = ${JSON.stringify(CONFIG_OPERACION)};`)
+            .replace(/let LOGO_EMPRESA = [^;]+;/, `let LOGO_EMPRESA = ${JSON.stringify(LOGO_EMPRESA)};`)
+            .replace(/let aspiranteActivoId = [^;]+;/, `let aspiranteActivoId = ${JSON.stringify(aspiranteActivoId)};`)
+            .replace(/let diaGlobalCapacitacion = [^;]+;/, `let diaGlobalCapacitacion = ${diaGlobalCapacitacion};`)
+            .replace(/let participantes = [^;]+;/, `let participantes = ${JSON.stringify(participantes)};`)
+            .replace(/let temarioPQR = [^;]+;/, `let temarioPQR = ${JSON.stringify(temarioPQR)};`)
+            .replace(/let registrosAsistenciaManual = [^;]+;/, `let registrosAsistenciaManual = ${JSON.stringify(registrosAsistenciaManual)};`)
+            .replace(/let cronogramaOficialCargado = [^;]+;/, `let cronogramaOficialCargado = ${JSON.stringify(Boolean(cronogramaOficialCargado))};`)
+            .replace(/escucharDatosFirebase\(\);/g, 'void 0;');
+
+        scriptExportado += `
+(function() {
+    function iniciarReporteEjecutivo() {
+        try {
+            actualizarIdentidadOperacion();
+            actualizarLogoEmpresa();
+            actualizarMetaDiasUI();
+            actualizarProgresoGlobal();
+            actualizarKPISGlobales();
+            actualizarParticipantesActivos();
+            popularListaAspirantes();
+            renderizarCronograma();
+            renderizarTop5();
+            renderizarTablaModuloRetiros();
+
+            const idInicial = aspiranteActivoId || (participantes.length ? participantes[0].id : null);
+            if (idInicial) {
+                seleccionarAspirante(idInicial);
+            }
+        } catch (error) {
+            console.error('Error al iniciar reporte:', error);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        window.addEventListener('load', () => setTimeout(iniciarReporteEjecutivo, 200));
+    } else {
+        setTimeout(iniciarReporteEjecutivo, 200);
+    }
+})();
+`;
+
+        domClonado.querySelectorAll('script').forEach(s => { 
+            if (s.id === 'main-script' || !s.src) s.remove(); 
+        });
+
+        let nuevoScript = document.createElement('script'); 
+        nuevoScript.id = 'main-script'; 
+        nuevoScript.textContent = scriptExportado; 
+        domClonado.querySelector('body').appendChild(nuevoScript);
+
+        let htmlFinal = "<!DOCTYPE html>\n<html lang=\"es\">\n" + domClonado.outerHTML + "\n</html>";
+        let blob = new Blob([htmlFinal], { type: "text/html;charset=utf-8" });
+        let url = URL.createObjectURL(blob);
+        let linkDescarga = document.createElement('a');
+        
+        const nombreOp = (CONFIG_OPERACION.campana || 'Operacion').replace(/[^a-zA-Z0-9]/g, '_');
+        linkDescarga.href = url; 
+        linkDescarga.download = `Reporte_Ejecutivo_${nombreOp}.html`;
+        document.body.appendChild(linkDescarga); 
+        linkDescarga.click(); 
+        document.body.removeChild(linkDescarga); 
+        URL.revokeObjectURL(url);
+    }
+
+    // 9. CONTROLADORES UI
     function cambiarPestana(id, btn) {
         document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1201,10 +1305,6 @@
         document.getElementById("modalEditorCronograma").style.display = "flex";
     }
     function cerrarModalEditor() { document.getElementById("modalEditorCronograma").style.display = "none"; }
-
-    function exportarReporteHTML() {
-        window.print();
-    }
 
     (function(){
         const splash = document.getElementById('startupSplash');
